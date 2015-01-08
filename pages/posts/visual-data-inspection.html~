@@ -1,0 +1,10 @@
+title: Visual Data Inspection
+headline: Plotting in iPython Notebook
+author: Dan McClary
+date: 07-01-2015
+
+{% extends "post.html" %}
+{% block body %}
+
+
+{% endblock body %}

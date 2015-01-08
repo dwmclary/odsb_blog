@@ -1,0 +1,370 @@
+title: Loading Simple Delimited Data
+headline: Use Python to load data into a database
+author: Dan McClary
+date: 07-01-2015
+
+{% extends "post.html" %}
+{% block body %}
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered">
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>There are lots of tools to load delimited data in to a database for sharing.  But very often, the delimited data we&#39;re given doesn&#39;t fit the form of the tables we&#39;d like to make.  In our case, the WHO makes available country-level data for influenza surveillance: what strain, how many samples, and so on for every week of the year.  The data is free to download, but just a raw dump of delimited strings.</p>
+<p>In this exercise, we&#39;ll use basic python and the cx-Oracle to clean up the data and form it into useful tables.  To begin, let&#39;s import cx-Oracle, which we&#39;ll use to communicate with our database, and a few standard python libraries.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Munging-and-Pivoting-Data">Munging and Pivoting Data<a class="anchor-link" href="#Munging-and-Pivoting-Data">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[10]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">cx_Oracle</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">string</span>
+<span class="kn">from</span> <span class="nn">glob</span> <span class="kn">import</span> <span class="n">glob</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>First thing&#39;s first: we need a method that will parse one of the <code>.psv</code> files which our WHO data comes in.  Take a minute to look at <code>WHO+EURO.psv</code>.  How many potential tables do you see in the data?</p>
+<p>Unfortunately, lines in the files aren&#39;t all the same length.  Some rows have 1 delimiter, some have more than 50.  In our method, we&#39;ve decided that the split between tables occurs where the rows have 2 &quot;columns.&quot;  Can you see why?</p>
+<p>We&#39;re going to break our file up into logical chunks, and each chunk will become a table.  For each of these chunks, we&#39;ll need to get the name of the table and the data for the table.  We&#39;ll also extract the region of the world this data belongs to from the filename.</p>
+<p>Finding the title and the dataset inside each chunk is fairly simple, but we&#39;ll need to do more to create well-formed data we can share with a database.  For this, we&#39;ll define a few functions: one for creating the table name, the other for formatting rows.  Then, for each logical chunk, we&#39;ll add it to a list of datasets to be inserted into the database.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[5]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">parseWHOCountryFile</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+  <span class="n">region</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;WHO+&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">,</span><span class="n">filename</span><span class="p">)</span>
+  <span class="n">region</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;.psv&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">region</span><span class="p">)</span>
+  <span class="n">region</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;\+&quot;</span><span class="p">,</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">region</span><span class="p">)</span>
+  <span class="n">region</span> <span class="o">=</span> <span class="n">region</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;/&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+  <span class="n">raw</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+  <span class="n">big_splits</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)):</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">))</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+      <span class="n">big_splits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+  <span class="n">datasets</span> <span class="o">=</span> <span class="p">[]</span>
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">big_splits</span><span class="p">),</span><span class="mi">2</span><span class="p">):</span>
+    <span class="n">ds</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">ds</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="n">big_splits</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+    <span class="n">ds</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">make_tablename</span><span class="p">(</span><span class="n">ds</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">])</span>
+    <span class="n">ds</span><span class="p">[</span><span class="s">&#39;period&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="n">big_splits</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">big_splits</span><span class="p">)</span><span class="o">-</span><span class="mi">2</span><span class="p">:</span>
+      <span class="n">ds</span><span class="p">[</span><span class="s">&#39;starts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">big_splits</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+      <span class="n">ds</span><span class="p">[</span><span class="s">&#39;ends&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">big_splits</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">2</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">ds</span><span class="p">[</span><span class="s">&#39;starts&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">big_splits</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span>
+      <span class="n">ds</span><span class="p">[</span><span class="s">&#39;ends&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
+    <span class="n">ds</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="n">ds</span><span class="p">[</span><span class="s">&#39;starts&#39;</span><span class="p">]:</span><span class="n">ds</span><span class="p">[</span><span class="s">&#39;ends&#39;</span><span class="p">]]</span>
+    <span class="n">ds</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">makerows</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">ds</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">])</span>
+    <span class="n">datasets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ds</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">datasets</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Making the name for the table is pretty easy.  We know we can&#39;t have special characters like <code>(</code> or <code>)</code> in our table name.  We also can&#39;t have spaces.  So, with a little chopping up of the string and a few calls to the re module, we&#39;ve got a clean table name.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[3]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">make_tablename</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+  <span class="n">title_string</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="k">if</span> <span class="s">&quot;specimen&quot;</span> <span class="ow">in</span> <span class="n">title_string</span><span class="p">:</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">title_string</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;-&gt;&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">+</span><span class="s">&quot;_Specimens&quot;</span>
+    <span class="k">if</span> <span class="s">&quot;processed&quot;</span> <span class="ow">in</span> <span class="n">title_string</span><span class="p">:</span>
+      <span class="n">title</span> <span class="o">+=</span> <span class="s">&quot;_proc&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">title</span> <span class="o">+=</span> <span class="s">&quot;_recv&quot;</span>
+  <span class="k">else</span><span class="p">:</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">title_string</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;-&gt;&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">+</span><span class="s">&quot;_Infections&quot;</span>
+  <span class="n">title</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;\(&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+  <span class="n">title</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;\)&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+  <span class="n">title</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">,</span><span class="s">&quot;_&quot;</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">title</span><span class="p">[:</span><span class="mi">25</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Separating the lines of data into rows and columns for our database insert is easy: everything is delimited by the <code>|</code> character.  However, we&#39;d like to have a table of tuples like this (region, country, year, week, measurement) and instead we&#39;ve got all the measures for every week of the year on a single line.  Fortunately, this sort of <em>en masse</em> string manipulation is easy with python&#39;s map function.  By defining an inner function and using the map operator, we can quickly pivot all the weeks into the 4-tuple for our database table.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[4]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">makerows</span><span class="p">(</span><span class="n">region_code</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+  <span class="n">dateprefix</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="n">dates</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">(),</span> <span class="n">dateprefix</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:])</span>
+  <span class="n">dates</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]],</span> <span class="n">dates</span><span class="p">)</span>
+  <span class="n">data</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">),</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+  <span class="c"># what we&#39;re really doing here is pivoting the data so that we can have country, year, week, value</span>
+  <span class="c"># for each row of raw data, we want a list of tuple (country, year, week, value)</span>
+  <span class="k">def</span> <span class="nf">row_to_tuple</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">r</span><span class="p">):</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="p">)):</span>
+      <span class="n">t</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">region_code</span><span class="p">,</span> <span class="n">r</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">dates</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">dates</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">,</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="n">r</span><span class="p">[</span><span class="n">i</span><span class="p">]))))</span>
+    <span class="k">return</span> <span class="n">t</span>
+  <span class="n">data</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">row_to_tuple</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="n">data</span><span class="p">)</span>
+  <span class="k">return</span> <span class="n">data</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Writing-Tables-and-Views">Writing Tables and Views<a class="anchor-link" href="#Writing-Tables-and-Views">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We now have a list of datasets, each with a table name and a set of 4-tuples.  In order to write this to the database, we&#39;ll need a method which does bulk inserts into Oracle database.  Our <em>write_to_db</em> function does just that.  Notice that because we don&#39;t know the name of the table, we use string substitution to automatically create a table for each of the logical chunks in a <code>psv</code> file.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[2]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">write_to_db</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
+  <span class="n">dt</span> <span class="o">=</span> <span class="s">&quot;DROP TABLE </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">dataset</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">]</span>
+  <span class="n">cursor</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+  <span class="n">ctine</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;CREATE TABLE </span><span class="si">%s</span><span class="s"> (</span>
+<span class="s">	  region VARCHAR(12),</span>
+<span class="s">	  country VARCHAR(500),</span>
+<span class="s">	  year NUMBER,</span>
+<span class="s">	  week NUMBER,</span>
+<span class="s">	  measure NUMBER,</span>
+<span class="s">          CONSTRAINT </span><span class="si">%s</span><span class="s">_id PRIMARY KEY (country, year, week)</span>
+<span class="s">          )&quot;&quot;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">],</span> <span class="n">dataset</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">])</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">cursor</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">ctine</span><span class="p">)</span>
+  <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+    <span class="k">print</span> <span class="n">e</span>
+    <span class="k">print</span> <span class="s">&quot;failed to create table&quot;</span><span class="p">,</span> <span class="n">dataset</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">]</span>
+    <span class="k">pass</span>
+  <span class="k">for</span> <span class="n">country</span> <span class="ow">in</span> <span class="n">dataset</span><span class="p">[</span><span class="s">&#39;data&#39;</span><span class="p">]:</span>
+    <span class="k">try</span><span class="p">:</span>
+      <span class="n">cursor</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="s">&quot;INSERT INTO </span><span class="si">%s</span><span class="s"> (region, country, year, week, measure) VALUES (:1, :2, :3, :4, :5)&quot;</span> <span class="o">%</span> <span class="n">dataset</span><span class="p">[</span><span class="s">&#39;title&#39;</span><span class="p">])</span>
+      <span class="n">cursor</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="n">country</span><span class="p">)</span>
+      <span class="n">db</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+      <span class="k">print</span> <span class="n">e</span>
+      <span class="k">print</span> <span class="n">country</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>While the <em>write_to_db</em> method will rapidly insert a dataset into the database, the tables it creates only show us one measure at a time.  When we think about the flu, we would like to look at measures for different strains side-by-side.  More importantly, when we expose that data to external tools, we&#39;d like to present a single dataset.  Fortunately, database <em>views</em> make it easy to &quot;publish&quot; a particular query for others to quickly access.</p>
+<p>The view we want needs to do the following: for each instance of (country, year, week), produce all the measurements from the tables we created from the raw data.  That means our SQL will need to:</p>
+<ul>
+<li>SELECT region, country, year, and week from <strong>one</strong> table</li>
+<li>SELECT the measurement from <strong>each</strong> table with a new column name (say, the table name)</li>
+<li>JOIN the tables together so that there is one row with all measures for each (region, country, year, week) tuple.</li>
+</ul>
+<p>Can you write the SQL query yourself?  Can you see how the <em>build_view</em> method assembles the query automatically?</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[6]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">build_view</span><span class="p">(</span><span class="n">datasets</span><span class="p">):</span>
+  <span class="n">view</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;CREATE OR REPLACE VIEW flu_statistics AS</span>
+<span class="s">  SELECT a.region, a.country, a.year, a.week, </span><span class="se">\n</span><span class="s">&quot;&quot;&quot;</span>
+  <span class="n">from_clause</span> <span class="o">=</span> <span class="s">&quot; from </span><span class="se">\n</span><span class="s">&quot;</span>
+  <span class="n">where_clause</span> <span class="o">=</span> <span class="s">&quot; where </span><span class="se">\n</span><span class="s">&quot;</span>
+  <span class="n">column_creation</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+  <span class="n">table_creation</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+  <span class="n">join_creation</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+  <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">)):</span>
+    <span class="n">column_creation</span> <span class="o">+=</span> <span class="s">&quot;{0}.measure as {1}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">datasets</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s">&#39;title&#39;</span><span class="p">])</span>
+    
+    <span class="n">table_creation</span> <span class="o">+=</span> <span class="s">&quot;{0} {1}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">datasets</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="s">&#39;title&#39;</span><span class="p">],</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+      <span class="n">column_creation</span> <span class="o">+=</span> <span class="s">&quot;,</span><span class="se">\n</span><span class="s">&quot;</span>
+      <span class="n">table_creation</span> <span class="o">+=</span> <span class="s">&quot;,</span><span class="se">\n</span><span class="s">&quot;</span>
+      <span class="n">join_creation</span> <span class="o">+=</span> <span class="s">&quot;{1}.country = {0}.country and {1}.year = {0}.year and {1}.week = {0}.week </span><span class="se">\n</span><span class="s">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+      <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">datasets</span><span class="p">)</span><span class="o">-</span><span class="mi">2</span><span class="p">):</span>
+        <span class="n">join_creation</span> <span class="o">+=</span> <span class="s">&quot;and</span><span class="se">\n</span><span class="s">&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="n">column_creation</span> <span class="o">+=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
+      <span class="n">table_creation</span> <span class="o">+=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
+     
+
+  <span class="n">view</span> <span class="o">+=</span> <span class="n">column_creation</span> <span class="o">+</span> <span class="n">from_clause</span> <span class="o">+</span> <span class="n">table_creation</span> <span class="o">+</span> <span class="n">where_clause</span> <span class="o">+</span> <span class="n">join_creation</span>
+  <span class="k">return</span> <span class="n">view</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>With our methods complete, we can finally list the files and get to processing.  The glob function allows us a wildcard search of the flu statistics data we downloaded.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[9]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">files</span> <span class="o">=</span> <span class="n">glob</span><span class="p">(</span><span class="s">&quot;/home/oracle/odsb2014/flu_statistics/data/*.psv&quot;</span><span class="p">)</span>
+<span class="k">print</span> <span class="n">files</span>
+<span class="n">files</span> <span class="o">=</span> <span class="n">files</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+[&apos;/home/oracle/odsb2014/flu_statistics/data/WHO+WEST+ASIA.psv&apos;, &apos;/home/oracle/odsb2014/flu_statistics/data/WHO+EURO.psv&apos;, &apos;/home/oracle/odsb2014/flu_statistics/data/WHO+PAHO.psv&apos;, &apos;/home/oracle/odsb2014/flu_statistics/data/WHO+AFRO.psv&apos;, &apos;/home/oracle/odsb2014/flu_statistics/data/WHO+US+comprehensive.psv&apos;]
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>And a simple for-loop will load the data into our database and create a view to share with our teammembers.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">db</span> <span class="o">=</span> <span class="n">cx_Oracle</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s">&#39;fludb&#39;</span><span class="p">,</span> <span class="s">&#39;flushot&#39;</span><span class="p">,</span> <span class="s">&#39;localhost:1521/orcl&#39;</span><span class="p">)</span>
+<span class="k">print</span> <span class="s">&quot;parsing datasets...&quot;</span>
+<span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+    <span class="n">datasets</span> <span class="o">=</span> <span class="n">parseWHOCountryFile</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="k">print</span> <span class="s">&quot;writing to DB...&quot;</span>
+    <span class="k">for</span> <span class="n">dataset</span> <span class="ow">in</span> <span class="n">datasets</span><span class="p">:</span>
+        <span class="n">write_to_db</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span>
+    <span class="k">print</span> <span class="s">&quot;creating view...&quot;</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">build_view</span><span class="p">(</span><span class="n">datasets</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+    </div>
+  </div>
+
+{% endblock body %}

@@ -1,0 +1,10 @@
+title: Lesson 1 - Loading Simple Delimited Data
+headline: Use Python to load data into a database
+author: Dan McClary
+date: 01-07-15
+
+{% extends "post.html" %}
+{% block body %}
+
+
+{% endblock body %}
