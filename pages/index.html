@@ -5,32 +5,48 @@
 
 	<section id="wrapper">
 		<header id="header">
-			<a id="title" class="index">Big Data Science Bootcamp</a>
-		</header> 
+			<h1 id="maintitle">Big Data Science Bootcamp</h1><br>
+		</header>
 
-		<ul id="post-list">
+		<body>
+			<br>
+			<h3>How to use Data Science to impress your friends...</h3>
+			<p>Hey there, you’ve reached the blog portion Big Data Science Bootcamp! You can find our series of corresponding lectures on Youtube <a href="">here.</a></p>
+
+			<p>The goal of Bootcamp is to explain how to tell meaningful stories with data using best-of-breed tools. We’ll be using popular developer tools to treat tangible data problems from ingest to insight. No contrived examples here, our courses use real (publically available) data sets to teach skills to deal with data ingestion, quality, analysis, and visualization.</p>
+
+			<p>Get started with one of our courses below! If you have questions along the way, be sure to check out our <a href="">Command Shortcuts Index</a> and <a href="">FAQ’s.</a></p>
+
+		</body>
+
+		<ul id="chunk">
+			<br>
+			<h3><a href="">...when you have the flu<a></h3>
+			<h6>Bootcamp's stab at a study of flu epidemic data</h6>
+		</ul>
+
+<!-- 		<ul id="post-list">
 			{% for post in posts %}
 				<li> 
 					<a href='/{{ post.path }}'><aside class="dates">{{ post.date|date:"M j" }}</aside></a>
 					<a href='/{{ post.path }}'>{{ post.title }} <h2>{{ post.headline }}</h2></a>
 				</li>
 			{% endfor %}
-		</ul>
+		</ul> -->
 
-		<!-- Uncomment for link to archive.
+		
+
+		{% block footer %}
 		{% if posts|length >= 4 %}
 			<footer id="post-list-footer">
 				<a id="archive-link" href="archive.html"> <span class="arrow">&larr;</span> Archive</a>
 			</footer>
 		{% endif %}
-		-->
 
-		{% block footer %}
-			<footer id="footer">
-				<p class="small">A short description</p>
-			</footer>
 		{% endblock footer %}
 	</section>
+
+
 
 	<a href="http://cactusformac.com/?utm_source=templates&utm_medium=badge&utm_campaign=blog-template"><img id="badge" class="2x" src="{% static '/images/badge.png' %}"/></a>
 	
