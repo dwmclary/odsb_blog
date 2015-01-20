@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+
+{% extends "base.html" %}
+{% block content %}
+
+
+	<section id="wrapper">
+		<header id="header">
+			<h2><b>How to use Data Science to impress your friends...</b></h2><br>
+			<img class="title-pic" src="static/images/bigdataheaderimage.png" width:"100%">
+		</header>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
+
+
+			<footer id="footer">
+				<p class="small">A short description</p>
+			</footer>
+		
+	</section>
+
+	<a href="http://cactusformac.com/?utm_source=templates&utm_medium=badge&utm_campaign=blog-template"><img id="badge" class="2x" src="/static/images/badge.png"/></a>
+	
+
+
+	
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+		<script src="/static/js/main.js"></script>
+
+
+		{% block footer %}
+		{% if posts|length >= 4 %}
+			<footer id="post-list-footer">
+				<a id="archive-link" href="archive.html"> <span class="arrow">&larr;</span> Archive</a>
+			</footer>
+		{% endif %}
+
+		{% endblock footer %}
+	</section>
+
+
+
+	<a href="http://cactusformac.com/?utm_source=templates&utm_medium=badge&utm_campaign=blog-template"><img id="badge" class="2x" src="{% static '/images/badge.png' %}"/></a>
+	
+{% endblock content %}
