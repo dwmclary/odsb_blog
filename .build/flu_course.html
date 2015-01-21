@@ -1,8 +1,29 @@
-
 <!DOCTYPE html>
 
-{% extends "base.html" %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Big Data Science Bootcamp</title>
+	<link rel="shortcut icon" href="/static/images/favicon.ico">	
+	<link rel="stylesheet" href="/static/css/style.css">
+	<link rel="stylesheet" href="/static/css/notebook.css">
+	<link rel="alternate" type="application/rss+xml" title="My Blog Feed" href="/rss.xml">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+<style type="text/css">
+    </style>
+<style type="text/css">
+</style>
+
+</head>
+<body>
+	
 
 
 	<section id="wrapper">
@@ -56,18 +77,25 @@
 		<script src="/static/js/main.js"></script>
 
 
-		{% block footer %}
-		{% if posts|length >= 4 %}
+		
+		
 			<footer id="post-list-footer">
 				<a id="archive-link" href="archive.html"> <span class="arrow">&larr;</span> Archive</a>
 			</footer>
-		{% endif %}
+		
 
-		{% endblock footer %}
+		
 	</section>
 
 
 
-	<a href="http://cactusformac.com/?utm_source=templates&utm_medium=badge&utm_campaign=blog-template"><img id="badge" class="2x" src="{% static '/images/badge.png' %}"/></a>
+	<a href="http://cactusformac.com/?utm_source=templates&utm_medium=badge&utm_campaign=blog-template"><img id="badge" class="2x" src="/static/images/badge.png"/></a>
 	
-{% endblock content %}
+
+
+	
+		<script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+		<script src="/static/js/main.js"></script>
+	
+</body>
+</html>
