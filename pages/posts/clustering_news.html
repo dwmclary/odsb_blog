@@ -1,0 +1,431 @@
+title: Clustering the News
+author: Dan McClary
+date: 11-10-2013
+headline: with Spark and MLlib
+
+{% extends "post.html" %}
+{% block body %}
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Clustering-the-News-with-Spark-and-MLLib">Clustering the News with Spark and MLLib<a class="anchor-link" href="#Clustering-the-News-with-Spark-and-MLLib">&#182;</a></h1>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We've previously looked at using Spark for both the analysis of text and some machine learning tasks via the PySpark interface. Through this, we've learned about what words are important over time, and what articles are about. However, what if we wanted to understand what sort of categories the news breaks into? This might mean that we'd have to use both our text processing skills and some machine learning.</p>
+<p>In this lesson, we'll do just that: we'll use a simple unsupervised machine learning method, k-means clustering, to determine what broad categories the news fits into. To do this, we'll use Spark and it's MLLib libraries via the Scala programming language. This means the following notebook is <strong>not</strong> interactive. All of the commands can be copied into Spark's interactive Scala shell (launch it by typing <code>spark-shell</code>) or by building a standalone application.</p>
+<p>We'll discuss building and running a standalone app at the end of the lesson.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We'll begin with our imports. We'll need a few things: the MLLib classes that we require and the json4s package for parsing JSON in Scala.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">org.json4s._</span>
+<span class="kn">import</span> <span class="nn">org.json4s.jackson.Serialization.</span><span class="p">{</span><span class="n">read</span><span class="p">,</span><span class="n">write</span><span class="p">}</span>
+<span class="kn">import</span> <span class="nn">org.apache.spark.rdd.RDD</span>
+<span class="kn">import</span> <span class="nn">org.apache.spark.mllib.clustering.KMeans</span>
+<span class="kn">import</span> <span class="nn">org.apache.spark.mllib.feature.Word2Vec</span>
+<span class="kn">import</span> <span class="nn">org.apache.spark.mllib.feature.Word2VecModel</span>
+<span class="kn">import</span> <span class="nn">org.apache.spark.mllib.linalg._</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Before we parse our JSON, we're going to want a class to put it in. Rather than treating it like a python dictionary, we're going to use a Scala Case Class. This lets us get a full Scala class with just a single line declaration.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">case</span> <span class="k">class</span> <span class="nc">NewsArticle</span><span class="p">(</span><span class="n">date</span> <span class="p">:</span> <span class="n">String</span><span class="p">,</span> <span class="n">title</span> <span class="p">:</span> <span class="n">String</span><span class="p">,</span> <span class="n">byline</span> <span class="p">:</span> <span class="n">String</span><span class="p">,</span> <span class="n">fulltext</span> <span class="p">:</span> <span class="n">String</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We need a number of helper functions for our lesson, so we'll define them here. Don't worry about what they do yet, we'll cover than in a moment.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">sumArray</span> <span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="n">Double</span><span class="p">],</span> <span class="n">n</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="n">Double</span><span class="p">]):</span> <span class="n">Array</span><span class="p">[</span><span class="n">Double</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">&lt;-</span> <span class="mi">0</span> <span class="n">until</span> <span class="n">m</span><span class="o">.</span><span class="n">length</span><span class="p">)</span> <span class="p">{</span><span class="n">m</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">+=</span> <span class="n">n</span><span class="p">(</span><span class="n">i</span><span class="p">)}</span>
+  <span class="k">return</span> <span class="n">m</span>
+<span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">divArray</span> <span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="n">Double</span><span class="p">],</span> <span class="n">divisor</span><span class="p">:</span> <span class="n">Double</span><span class="p">)</span> <span class="p">:</span> <span class="n">Array</span><span class="p">[</span><span class="n">Double</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="k">for</span> <span class="p">(</span><span class="n">i</span> <span class="o">&lt;-</span> <span class="mi">0</span> <span class="n">until</span> <span class="n">m</span><span class="o">.</span><span class="n">length</span><span class="p">)</span> <span class="p">{</span><span class="n">m</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">/=</span> <span class="n">divisor</span><span class="p">}</span>
+  <span class="k">return</span> <span class="n">m</span>
+<span class="p">}</span>
+
+<span class="k">def</span> <span class="nf">wordToVector</span> <span class="p">(</span><span class="n">w</span><span class="p">:</span><span class="n">String</span><span class="p">,</span> <span class="n">m</span><span class="p">:</span> <span class="n">Word2VecModel</span><span class="p">):</span> <span class="n">Vector</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="k">try</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="n">m</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+  <span class="p">}</span> <span class="n">catch</span> <span class="p">{</span>
+    <span class="n">case</span> <span class="n">e</span><span class="p">:</span> <span class="ne">Exception</span> <span class="o">=&gt;</span> <span class="k">return</span> <span class="n">Vectors</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+  <span class="p">}</span>  
+<span class="p">}</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now we're read to get started analyzing data. Let's load up our news data using, as before, <code>sc.textFile</code>.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">news_rdd</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">textFile</span><span class="p">(</span><span class="s">&quot;hdfs://localhost:8020/user/oracle/flu_news&quot;</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We need to parse the JSON data into objects, so, as with our PySpark work, we'll use the <code>map</code> function. However, we're using json4s' mechanisms. This means we'll use the <code>read</code> operation and provide it a <em>type</em> of <code>NewsArticle</code>. Unlike Python, Scala is a strongly-typed language. If the distinction is new to you, try to read up a bit on either Scala basics or on the importance of type to programming languages.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">news_json</span> <span class="o">=</span> <span class="n">news_rdd</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">record</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="n">implicit</span> <span class="n">val</span> <span class="n">formats</span> <span class="o">=</span> <span class="n">DefaultFormats</span>
+  <span class="n">read</span><span class="p">[</span><span class="n">NewsArticle</span><span class="p">](</span><span class="n">record</span><span class="p">)</span>
+<span class="p">})</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We're planning to use <a href="http://en.wikipedia.org/wiki/K-means_clustering">k-means</a> clustering to determine automatically which news articles belong to which clusters. However, we have to deal with a bit of an inconsistency first. K-means operates on numeric vectors (i.e., points in space), but we have words, not vectors in our articles. One way to treat this would be to compute TF-IDF for each article and treat that as a point in space. Each word would be a dimension, and each each TF-IDF score would be the value in that dimension.</p>
+<p>Ask yourself, how big would that vector be? Would it only include the dimensions for the words in the article? For the words in all articles? Maybe the vectors need to be as big as all the words in the English language!</p>
+<p>In fact, MLLib has a built-in TF-IDF transform which produces, by default, vectors that are 2^20 long. That's way too big to deal with in our virtual machine.</p>
+<p>What would happen if we did the following</p>
+<ul>
+<li>Made each article's vector include only the dimensions of the words in each title?</li>
+<li>Made each article's vector include the dimensions of only the words in all titles?</li>
+<li>Made each article's vector a dimensional reduction of all the words in all titles?</li>
+</ul>
+<p>For simplicity, we're only going to deal with the titles, as opposed to all the words in the articles. We're also not going to use TF-IDF, for reasons that will become apparent if you answer the questions above. Instead, we're going to rely on a method called <a href="https://code.google.com/p/word2vec/">Word2Vec</a>. Originated at Google, word2vec does a remarkably good job of transforming single words into reasonably-sized vectors. When generated from a large corpus, these vectors allow us to find synonyms with surprising accuracy.</p>
+<p>So, the first thing we'll need is a corpus of words. Let's make one from our titles.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">news_titles</span> <span class="o">=</span> <span class="n">news_json</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">_</span><span class="o">.</span><span class="n">title</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot; &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">toSeq</span><span class="p">)</span>
+<span class="n">val</span> <span class="n">news_title_words</span> <span class="o">=</span> <span class="n">news_titles</span><span class="o">.</span><span class="n">flatMap</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">Seq</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In order to find better synonyms, we should add more words to our corpus. Let's do just that by grabbing a sample from the <code>linewise_text_8</code> file included in <code>flu_news/data</code>.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">w2v_input</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">textFile</span><span class="p">(</span><span class="s">&quot;file:///home/oracle/odsb2014/flu_news/data/linewise_text_8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">false</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">Seq</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">val</span> <span class="n">all_input</span> <span class="o">=</span> <span class="n">w2v_input</span> <span class="o">++</span> <span class="n">news_title_words</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now we're ready to build a word2vec model from our corpus. Constructing this model using Spark is easy!</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">word2vec</span> <span class="o">=</span> <span class="n">new</span> <span class="n">Word2Vec</span><span class="p">()</span>
+<span class="n">val</span> <span class="n">model</span> <span class="o">=</span> <span class="n">word2vec</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">all_input</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now we've got a model which can compute synonyms, but we have another problem. Titles have many words and word2vec only operates on one of 2 things: words or vectors. How can we find the synonyms for a whole title?!</p>
+<p>One of the interesting features of word2vec is that it displays reasonably good synonym prediction when the fectors for words are added together or subtracted. That is <code>v(king) - v(man) ~= v(queen)</code>. Thus, we could rationalize that a title is just the average vector of all the words in the title. Let's give that a try.</p>
+<p>For this, we'll need to use a couple of our helper functions.</p>
+<ul>
+<li>Inside our Spark RDD's <code>map</code> operation, we're going to call Scala's <code>map</code> to apply the word2vec model to each word.<br /></li>
+<li>That gives us a Sequence of Arrays for each title, which we need to</li>
+<li>Sum up</li>
+<li>Divide by the total number of words in the title</li>
+<li>The summing can be handled by using the <code>reduceLeft</code> Scala operator. Look at the helper function and see if you can determine what is happening.</li>
+<li>The dividing is taken care of by the <code>divArray</code> helper function</li>
+</ul>
+<p>Once this is done, we now have RDDs which contain average vectors for each title. We're ready to cluster!</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">title_vectors</span> <span class="o">=</span> <span class="n">news_titles</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">new</span> <span class="n">DenseVector</span><span class="p">(</span><span class="n">divArray</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">m</span> <span class="o">=&gt;</span> <span class="n">wordToVector</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">toArray</span><span class="p">)</span><span class="o">.</span><span class="n">reduceLeft</span><span class="p">(</span><span class="n">sumArray</span><span class="p">),</span><span class="n">x</span><span class="o">.</span><span class="n">length</span><span class="p">))</span><span class="o">.</span><span class="n">asInstanceOf</span><span class="p">[</span><span class="n">Vector</span><span class="p">])</span>
+
+<span class="n">val</span> <span class="n">title_pairs</span> <span class="o">=</span> <span class="n">news_titles</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">new</span> <span class="n">DenseVector</span><span class="p">(</span><span class="n">divArray</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">m</span> <span class="o">=&gt;</span> <span class="n">wordToVector</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span><span class="o">.</span><span class="n">toArray</span><span class="p">)</span><span class="o">.</span><span class="n">reduceLeft</span><span class="p">(</span><span class="n">sumArray</span><span class="p">),</span><span class="n">x</span><span class="o">.</span><span class="n">length</span><span class="p">))</span><span class="o">.</span><span class="n">asInstanceOf</span><span class="p">[</span><span class="n">Vector</span><span class="p">]))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As with word2vec, Spark's MLLib make k-means clustering easy. All we need to do is specify the number of clusters and iterations.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">var</span> <span class="n">numClusters</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="n">val</span> <span class="n">numIterations</span> <span class="o">=</span> <span class="mi">25</span>
+<span class="n">var</span> <span class="n">clusters</span> <span class="o">=</span> <span class="n">KMeans</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">title_vectors</span><span class="p">,</span> <span class="n">numClusters</span><span class="p">,</span> <span class="n">numIterations</span><span class="p">)</span>
+<span class="n">var</span> <span class="n">wssse</span> <span class="o">=</span> <span class="n">clusters</span><span class="o">.</span><span class="n">computeCost</span><span class="p">(</span><span class="n">title_vectors</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>With our cluster model complete, we can assign article titles to clusters. We can also create RDDs for each of the cluster centers and produce words for their vectors (i.e., make titles for these purely numerical cluster centers).</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">val</span> <span class="n">article_membership</span> <span class="o">=</span> <span class="n">title_pairs</span><span class="o">.</span><span class="n">mapValues</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">clusters</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+<span class="n">val</span> <span class="n">cluster_centers</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">parallelize</span><span class="p">(</span><span class="n">clusters</span><span class="o">.</span><span class="n">clusterCenters</span><span class="o">.</span><span class="n">zipWithIndex</span><span class="o">.</span><span class="n">map</span><span class="p">{</span> <span class="n">e</span> <span class="o">=&gt;</span> <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">_2</span><span class="p">,</span><span class="n">e</span><span class="o">.</span><span class="n">_1</span><span class="p">)})</span>
+<span class="n">val</span> <span class="n">cluster_topics</span> <span class="o">=</span> <span class="n">cluster_centers</span><span class="o">.</span><span class="n">mapValues</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">model</span><span class="o">.</span><span class="n">findSynonyms</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="mi">5</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">x</span><span class="p">(</span><span class="mi">0</span><span class="p">)))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Taking a look at the cluster membership, we can see not everything is a perfect match. But on the whole more articles make sense in the cluster than do not. It seems we've done a reasonable job classifying the types of stories in the news.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">var</span> <span class="n">sample_topic</span> <span class="o">=</span> <span class="n">cluster_topics</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="mi">10</span><span class="p">)(</span><span class="mi">6</span><span class="p">)</span>
+<span class="n">println</span><span class="p">(</span><span class="n">sample_topic</span><span class="o">.</span><span class="n">_2</span><span class="o">.</span><span class="n">mkString</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">))</span>
+
+<span class="n">var</span> <span class="n">sample_members</span> <span class="o">=</span> <span class="n">article_membership</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">x</span><span class="o">.</span><span class="n">_2</span> <span class="o">==</span> <span class="mi">6</span><span class="p">)</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">sample_members</span><span class="o">.</span><span class="n">foreach</span><span class="p">{</span><span class="n">x</span> <span class="o">=&gt;</span> <span class="n">println</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">_1</span><span class="o">.</span><span class="n">mkString</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">))}</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Building-a-Stand-Alone-Application">Building a Stand-Alone Application<a class="anchor-link" href="#Building-a-Stand-Alone-Application">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>To really get the most out of this, we need to build a stand-alone Spark application. To do this, we'll need to do a few things.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">sbt</span> <span class="n">package</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">spark</span><span class="o">-</span><span class="n">submit</span> <span class="o">--</span><span class="k">class</span> <span class="nc">com</span><span class="o">.</span><span class="n">oracle</span><span class="o">.</span><span class="n">newscluster</span><span class="o">.</span><span class="n">NewsClustering</span> <span class="n">target</span><span class="o">/</span><span class="n">scala</span><span class="o">-</span><span class="mf">2.10</span><span class="o">/</span><span class="n">newsclustering_2</span><span class="o">.</span><span class="mi">10</span><span class="o">-</span><span class="mf">0.1</span><span class="o">.</span><span class="n">jar</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+    </div>
+  </div>
+{% endblock body %}
