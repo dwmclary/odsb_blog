@@ -1,0 +1,882 @@
+title: Collecting Streaming News with Flume and Spark Streaming
+author: Dan McClary
+date: 11-10-2013
+headline: Spark Streaming
+
+{% extends "post.html" %}
+{% block body %}
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Collecting-Streaming-News-with-Flume-and-Spark-Streaming">Collecting Streaming News with Flume and Spark Streaming<a class="anchor-link" href="#Collecting-Streaming-News-with-Flume-and-Spark-Streaming">&#182;</a></h1>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We&#39;ve looked at historical news data to learn about the flu, but how do we keep up with news that&#39;s happening in real time?  We need a solution that can search for news about the flu in a <em>stream</em> of data.</p>
+<p>In this exercise, we&#39;re going to do exactly that.  We&#39;ll build an end-to-end stream processing system which reads from the <a href="http://www.reuters.com">Reuters</a> news wire, looks for information about the flu, and saves any it finds.  This will involve a number of our Big Data tools.</p>
+<ul>
+<li>First, we&#39;ll look at how to collect RSS data in python.  This will be the source of our news stream.</li>
+<li>Second, we&#39;ll connect the python code to <a href="http://flume.apache.org/">Apache Flume</a>.  Flume is a powerful, distributed data transfer system which is simple to set up.</li>
+<li>Third, we&#39;ll use <a href="http://spark.apache.org/streaming/">Spark Streaming</a> to build a Spark application which can process incoming data in real time.</li>
+</ul>
+<p>You can find the complete source for this example in the repository under <code>flu_news/news_streaming</code></p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Collecting-RSS-Data-with-Python">Collecting RSS Data with Python<a class="anchor-link" href="#Collecting-RSS-Data-with-Python">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Collecting RSS data from Reuters is probably the simplest part of our task.  The <code>feedparser</code> library can pull down most RSS feads.  A feed consists of several entries, each of which contains several keys.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[50]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">feedparser</span>
+<span class="kn">from</span> <span class="nn">bs4</span> <span class="kn">import</span> <span class="n">BeautifulSoup</span>
+<span class="kn">import</span> <span class="nn">json</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[45]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">d</span> <span class="o">=</span> <span class="n">feedparser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s">&quot;http://feeds.reuters.com/reuters/topNews&quot;</span><span class="p">)</span>
+<span class="k">print</span> <span class="n">d</span><span class="o">.</span><span class="n">entries</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+[&apos;summary_detail&apos;, &apos;published_parsed&apos;, &apos;links&apos;, &apos;title&apos;, &apos;feedburner_origlink&apos;, &apos;tags&apos;, &apos;summary&apos;, &apos;guidislink&apos;, &apos;title_detail&apos;, &apos;link&apos;, &apos;published&apos;, &apos;id&apos;]
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Of the keys, the title and summary are perhaps the most interesting.  The title is straightforward.  The summary, however, is HTML.  Fortunately, we can use BeautifulSoup to extract the text from HTML very quickly.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[47]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">print</span> <span class="s">&quot;title&quot;</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">entries</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">title</span>
+<span class="k">print</span> <span class="s">&quot;summary&quot;</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">entries</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">summary</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+title Ukraine&apos;s Yanukovich wanted for embezzlement: Interpol
+summary KIEV (Reuters) - Interpol has put ousted Ukrainian president Viktor Yanukovich and two members of his former government on the international wanted list at the behest of Ukraine, according to a notice on its website on Monday.&lt;img border=&quot;0&quot; height=&quot;1&quot; src=&quot;http://reuters.us.feedsportal.com/c/35217/f/654200/s/423be9ca/sc/36/mf.gif&quot; width=&quot;1&quot; /&gt;&lt;br clear=&quot;all&quot; /&gt;&lt;br /&gt;&lt;br /&gt;&lt;a href=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/1/rc.htm&quot; rel=&quot;nofollow&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/1/rc.img&quot; /&gt;&lt;/a&gt;&lt;br /&gt;&lt;a href=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/2/rc.htm&quot; rel=&quot;nofollow&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/2/rc.img&quot; /&gt;&lt;/a&gt;&lt;br /&gt;&lt;a href=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/3/rc.htm&quot; rel=&quot;nofollow&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/rc/3/rc.img&quot; /&gt;&lt;/a&gt;&lt;br /&gt;&lt;br /&gt;&lt;a href=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/a2.htm&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://da.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/a2.img&quot; /&gt;&lt;/a&gt;&lt;img border=&quot;0&quot; height=&quot;1&quot; src=&quot;http://pi.feedsportal.com/r/218610520843/u/49/f/654200/c/35217/s/423be9ca/sc/36/a2t.img&quot; width=&quot;1&quot; /&gt;&lt;div class=&quot;feedflare&quot;&gt;
+&lt;a href=&quot;http://feeds.reuters.com/~ff/reuters/topNews?a=pe_Wi3KHurA:bb0Ncx_qaQc:yIl2AUoC8zA&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://feeds.feedburner.com/~ff/reuters/topNews?d=yIl2AUoC8zA&quot; /&gt;&lt;/a&gt; &lt;a href=&quot;http://feeds.reuters.com/~ff/reuters/topNews?a=pe_Wi3KHurA:bb0Ncx_qaQc:V_sGLiPBpWU&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://feeds.feedburner.com/~ff/reuters/topNews?i=pe_Wi3KHurA:bb0Ncx_qaQc:V_sGLiPBpWU&quot; /&gt;&lt;/a&gt; &lt;a href=&quot;http://feeds.reuters.com/~ff/reuters/topNews?a=pe_Wi3KHurA:bb0Ncx_qaQc:-BTjWOF_DHI&quot;&gt;&lt;img border=&quot;0&quot; src=&quot;http://feeds.feedburner.com/~ff/reuters/topNews?i=pe_Wi3KHurA:bb0Ncx_qaQc:-BTjWOF_DHI&quot; /&gt;&lt;/a&gt;
+&lt;/div&gt;&lt;img alt=&quot;&quot; height=&quot;1&quot; src=&quot;http://feeds.feedburner.com/~r/reuters/topNews/~4/pe_Wi3KHurA&quot; width=&quot;1&quot; /&gt;
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Flu news could come from a number of different wires, so we&#39;ll have to check many of them.  Let&#39;s consider the feeds for top news, health, healthcare, and science.</p>
+<p>For each of these feeds, we need to keep track of <code>etags</code>.  E-Tag data ensures that we don&#39;t retrieve data from the news feed when there&#39;s no new news -- think of it as a &quot;high-water mark&quot; for news we&#39;ve seen.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[26]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">urls</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;top_news&quot;</span><span class="p">:</span><span class="s">&quot;http://feeds.reuters.com/reuters/topNews&quot;</span><span class="p">,</span> <span class="s">&quot;health&quot;</span><span class="p">:</span> <span class="s">&quot;http://feeds.reuters.com/reuters/healthNews&quot;</span><span class="p">,</span> \
+        <span class="s">&quot;healthcare&quot;</span><span class="p">:</span><span class="s">&quot;http://feeds.reuters.com/reuters/UShealthcareNews&quot;</span><span class="p">,</span> \
+        <span class="s">&quot;science&quot;</span><span class="p">:</span><span class="s">&quot;http://feeds.reuters.com/reuters/scienceNews&quot;</span><span class="p">}</span>
+
+<span class="n">etags</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;top_news&quot;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span> <span class="s">&quot;health&quot;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span> <span class="s">&quot;healthcare&quot;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span> <span class="s">&quot;science&quot;</span><span class="p">:</span> <span class="bp">None</span><span class="p">}</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>From here, it&#39;s a simple exercise to loop through the feeds and parse the data.  We&#39;ll ouput the data to standard output (that is, we&#39;ll <code>print</code> it) in JSON format for our Spark application to later process.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[52]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">urls</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">feedparser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">d</span><span class="o">.</span><span class="n">entries</span><span class="p">:</span>
+        <span class="n">doc</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s">&quot;category&quot;</span><span class="p">:</span><span class="n">k</span><span class="p">,</span> <span class="s">&quot;title&quot;</span><span class="p">:</span><span class="n">e</span><span class="o">.</span><span class="n">title</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="s">&quot;summary&quot;</span><span class="p">:</span><span class="n">BeautifulSoup</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">summary</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()})</span>
+        <span class="k">print</span> <span class="n">doc</span>
+    <span class="n">etags</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">etag</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;CAPE CANAVERAL, Fla. (Reuters) - A SpaceX Dragon capsule wrapped up a two-day journey to the International Space Station on Monday, the first U.S. cargo run to the orbital outpost in four months, a NASA TV broadcast showed.&quot;, &quot;title&quot;: &quot;SpaceX cargo capsule reaches International Space Station&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;(Reuters) - Scotland has its very own prehistoric marine reptile - and, no, we&apos;re not talking about Nessie, the mythic Loch Ness monster.&quot;, &quot;title&quot;: &quot;Move over Nessie, Scotland gets a new prehistoric marine reptile&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;CAPE CANAVERAL, Fla (Reuters) - An unmanned SpaceX rocket blasted off on Saturday to deliver a cargo capsule to the International Space Station, but narrowly failed a novel test to land itself on a platform in the ocean, the company said.&quot;, &quot;title&quot;: &quot;SpaceX rocket nails launch but narrowly misses landing test&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;TOKYO (Reuters) - Japan is shifting its space program toward potential military uses in a new policy hailed on Friday as a \&quot;historic turning point\&quot; by Prime Minister Shinzo Abe, who wants to strengthen defence and boost exports.&quot;, &quot;title&quot;: &quot;Japan reorients space effort to bolster security, drive exports&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;NEW YORK (Reuters) - Almost always raise your opponent&apos;s first bet, which can provoke an immediate fold. In later rounds, if your opponent raises, re-raise if you&apos;re holding at least a pair of threes. Err on the side of playing a hand, not folding.&quot;, &quot;title&quot;: &quot;Know when to fold &apos;em: computer aces Texas hold &apos;em poker&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - By about age 2, people can recognize their own reflections in a mirror. Great apes including chimpanzees, orangutans, bonobos and gorillas also have exhibited this key indicator of intelligence. But monkeys? Not so much.&quot;, &quot;title&quot;: &quot;Mirror, mirror on the wall, who&apos;s the fairest monkey of all?&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;RAANANA, Israel (Reuters) - Dodgy line calls are the bane of tennis players from professional to amateur but a new system to rival Hawk-Eye will allow club plodders and not just the world&apos;s elite to take a closer look at contentious decisions.&quot;, &quot;title&quot;: &quot;Smart Court serves up instant review for the tennis masses&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;TUZLA, Bosnia (Reuters) - Bosnia was still digging up the bones of its own when those of others began arriving in boxes from the tsunami-struck shores of Southeast Asia a decade ago.&quot;, &quot;title&quot;: &quot;Bosnia leads global search for missing with expertise on bones&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;CAPE CANAVERAL, Fla (Reuters) - Space Exploration Technologies will try again Saturday to launch a Falcon 9 rocket carrying a cargo capsule for the International Space Station, then attempt to land the discarded booster on a platform in the ocean, officials said on Wednesday.&quot;, &quot;title&quot;: &quot;SpaceX rocket launch, and landing test, reset for Saturday&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The U.S. Air Force said on Tuesday it was close to certifying a second company to launch military and intelligence satellites into space, and announced a review of the process used to vet new entrants.&quot;, &quot;title&quot;: &quot;U.S. Air Force &apos;close&apos; to certifying new satellite launch provider&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;(Reuters) - Privately held 23andMe Inc and Genentech said on Tuesday they will work together to generate whole genome sequencing data for about 3,000 people with Parkinson&apos;s disease, in order to identify new therapeutic targets for treating the degenerative neurological condition.&quot;, &quot;title&quot;: &quot;23andMe, Genentech to analyze 3,000 Parkinson&apos;s genomes&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;CAPE CANAVERAL, Fla. (Reuters) - A SpaceX rocket launch from Florida was canceled because of a last-minute technical glitch on Tuesday, delaying a cargo run to the International Space Station and a pioneering attempt to fly the discarded booster back to Earth, officials said.&quot;, &quot;title&quot;: &quot;Launch of SpaceX rocket from Florida called off&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;(Reuters) - Corn syrup was found to be more toxic to female mice than table sugar, shortening their lives and cutting their rate of reproduction, according to a study by University of Utah researchers published online in a scientific journal on Monday.&quot;, &quot;title&quot;: &quot;Corn syrup more toxic than table sugar in female mice: study&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;CAPE CANAVERAL, Fla (Reuters) - The Government Accountability Office rejected Sierra Nevada Corp\u2019s protest of $6.8 billion in contracts NASA awarded to Boeing Co BA.N and Space Exploration Technologies to develop and fly commercial space taxis, the congressional watchdog agency said on Monday.&quot;, &quot;title&quot;: &quot;U.S. GAO rejects protest of space taxi deal with Boeing, SpaceX&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - To learn the secret behind aging gracefully, you may want to check out the bowhead whale, the majestic denizen of the Arctic waters that boasts a lifespan topping 200 years.&quot;, &quot;title&quot;: &quot;How to age gracefully? Ask a bowhead whale&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - Its fangs are not what makes the newly identified Indonesian frog species Limnonectes larvaepartus unique on Earth. The way it makes babies does.&quot;, &quot;title&quot;: &quot;Indonesian frog is one of a kind - and not because of its fangs&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;(Reuters) - Monarch butterflies may warrant U.S. Endangered Species Act protection because of farm-related habitat loss blamed for sharp declines in cross-country migrations of the orange-and-black insects, the U.S. Fish and Wildlife Service said on Monday.&quot;, &quot;title&quot;: &quot;Monarch butterfly eyed for possible U.S. endangered species protection&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - European regulators have recommended approval of the first medicine containing stem cells to treat a rare condition caused by burns to the eye.&quot;, &quot;title&quot;: &quot;Europe recommends approval for first stem-cell therapy&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;TOKYO (Reuters) - A disgraced Japanese researcher has failed to replicate results hailed as a potential breakthrough in stem-cell treatment and efforts to do so will be abandoned, officials at her research institute said on Friday.&quot;, &quot;title&quot;: &quot;Disgraced Japan researcher fails to replicate &apos;game changing&apos; stem cell results&quot;}
+{&quot;category&quot;: &quot;science&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - You might want to be careful about who you call a birdbrain. Some of our feathered friends exhibit powers of perception that put humans to shame.&quot;, &quot;title&quot;: &quot;Songbirds fly coop long before tornadoes arrive in Tennessee&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;KIEV (Reuters) - Interpol has put ousted Ukrainian president Viktor Yanukovich and two members of his former government on the international wanted list at the behest of Ukraine, according to a notice on its website on Monday.&quot;, &quot;title&quot;: &quot;Ukraine&apos;s Yanukovich wanted for embezzlement: Interpol&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;PARIS (Reuters) - France will deploy 10,000 soldiers on home soil by Tuesday and post almost 5,000 extra police officers to protect Jewish sites after the killing of 17 people by Islamist militants in Paris last week, officials said.&quot;, &quot;title&quot;: &quot;France mobilizes 10,000 troops at home after Paris shootings&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;NEW YORK (Reuters) - Oil slumped 5 percent to near six-year lows on Monday, accelerating its months-long rout after Goldman Sachs slashed its short-term price forecasts and Gulf producers showed no signs of curbing output.&quot;, &quot;title&quot;: &quot;Oil slumps 5 percent after Goldman slashes price forecast&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;PANGKALAN BUN, Indonesia/JAKARTA (Reuters) - Indonesian navy divers retrieved the black box flight data recorder from the wreck of an AirAsia passenger jet on Monday, a major step towards unraveling the cause of the crash that killed all 162 people on board.&quot;, &quot;title&quot;: &quot;Divers retrieve AirAsia &apos;black box&apos;, explosion theory questioned&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;(Reuters) - General Motors Co received 141 additional claims for compensation for ignition switch defects in its cars in the past week, bringing the total to 2,710, according to the official administering the compensation program.&quot;, &quot;title&quot;: &quot;GM gets 141 more claims for faulty ignition switch compensation&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON/HAVANA (Reuters) - Cuba has released all 53\u00a0prisoners it had promised to free, senior U.S. officials said, a major step toward d\u00e9tente with Washington.&quot;, &quot;title&quot;: &quot;Exclusive: Cuba has freed all 53 prisoners as agreed in U.S. deal - U.S. officials&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The U.S. Supreme Court on Monday rejected former Goldman Sachs Group director Rajat Gupta\u2019s challenge to a permanent ban from acting as a public company officer.&quot;, &quot;title&quot;: &quot;U.S. top court declines to hear Gupta&apos;s appeal over officer ban&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON (Thomson Reuters Foundation) - The United States is spending more than $300 million a year on Afghan police officer salaries despite a significant risk that the funds are being wasted and abused, a U.S. government watchdog said on Monday.&quot;, &quot;title&quot;: &quot;U.S.-funded Afghan police payroll at risk of waste and abuse: watchdog&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;HONG KONG/BEIJING (Reuters) - Mark Zuckerberg and Xiaomi Inc CEO Lei Jun discussed a potential investment by Facebook in China&apos;s top smartphone maker ahead of its $1.1 billion fundraising last month, but a deal never materialized, several people with knowledge of the matter told Reuters.&quot;, &quot;title&quot;: &quot;Exclusive: Facebook, Xiaomi discussed possible investment in the Chinese smartphone maker - sources&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The Supreme Court on Monday asked the U.S. government to weigh in on whether the justices should hear a closely watched copyright dispute between Google Inc and Oracle Corp over software used to design Google\u2019s Android smartphone operating system.&quot;, &quot;title&quot;: &quot;Supreme Court seek Obama administration views on Google-Oracle dispute&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;ZURICH (Reuters) - A former Julius Baer banker acknowledged that he passed confidential client data to WikiLeaks but argued his actions were not illegal, as his trial resumed on charges of breaching Swiss banking secrecy law.&quot;, &quot;title&quot;: &quot;Trial resumes for Swiss ex-banker charged with giving data to Wikileaks&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The U.S. Supreme Court, which is in the midst of deciding whether to take up the issue of gay marriage, on Monday declined to take an early look at a challenge to Louisiana\u2019s state ban.&quot;, &quot;title&quot;: &quot;Supreme Court rejects Louisiana gay marriage case, takes no action on four others&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The United States and its allies targeted Islamic State forces in 27 air strikes in Iraq and Syria in a 24-hour period, the Combined Joint Task Force said on Monday.&quot;, &quot;title&quot;: &quot;Islamic State hit with 27 air strikes: U.S. military&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;ZAGREB (Reuters) - Croatia&apos;s new center president signaled on Monday she meant to hold the Social Democrat-led government to account over the economy, in comments that could herald months of tense cohabitation before a parliamentary election.&quot;, &quot;title&quot;: &quot;New Croatian president targets government over economy&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;DETROIT (Reuters) - For Detroit\u2019s first auto show of the 21st Century in January 2000, General Motors announced \&quot;the largest auto show exhibit ever in North America\&quot; to usher in the new Millennium.&quot;, &quot;title&quot;: &quot;Auto industry&apos;s past and future collide in Detroit&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;ZURICH/LOS ANGELES (Reuters) - Roche Holding will acquire a majority stake in molecular and genomic analysis business Foundation Medicine, it said on Monday, signaling its determination to expand in cancer immunotherapy by paying a hefty mark-up on the U.S. company&apos;s current price.&quot;, &quot;title&quot;: &quot;Roche in $1 billion-plus Foundation Medicine deal to boost cancer efforts&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;SINGAPORE (Reuters) - A Singapore court has ordered a blogger to pay S$29,000 ($21,700) to Singapore Prime Minister Lee Hsien Loong as legal costs after Lee won a defamation case late last year.&quot;, &quot;title&quot;: &quot;Singapore court orders blogger to pay PM nearly $22,000 for legal costs&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;KABUL (Reuters) - Afghan President Ashraf Ghani nominated ministers for his new cabinet on Monday, after a wait of more than three months, to try to establish a working government to tackle the violence-racked country&apos;s problems.&quot;, &quot;title&quot;: &quot;Afghan president finally nominates cabinet ministers&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;CAIRO (Reuters) - An Egyptian court on Monday ordered the release of 26 men who were detained last month in a raid on a Cairo bath house after police received a tip that they were holding gay orgies.&quot;, &quot;title&quot;: &quot;Egypt court orders release of 26 men detained over bath house &apos;orgy&apos;&quot;}
+{&quot;category&quot;: &quot;top_news&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - Shire Plc has agreed to buy U.S. group NPS Pharmaceuticals Inc for $5.2 billion, the Dublin-based drugmaker&apos;s biggest acquisition yet as it seeks to strengthen its position in the lucrative field of medicines for rare diseases.&quot;, &quot;title&quot;: &quot;Shire to buy NPS for $5.2 billion to boost rare disease drugs&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - Shire Plc has agreed to buy U.S. group NPS Pharmaceuticals Inc for $5.2 billion, the Dublin-based drugmaker&apos;s biggest acquisition yet as it seeks to strengthen its position in the lucrative field of medicines for rare diseases.&quot;, &quot;title&quot;: &quot;Shire to buy NPS for $5.2 billion to boost rare disease drugs&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters Health) - Many teens wrongly think light or occasional smoking isn\u2019t bad for them, according to an analysis of a nationwide youth survey.&quot;, &quot;title&quot;: &quot;Kids may think light smoking is safe&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - Several expensive cancer medicines will no longer be available on Britain&apos;s state-funded National Health Service (NHS) following an overhaul of an over-budget drug funding scheme, NHS England said on Monday.&quot;, &quot;title&quot;: &quot;Britain&apos;s health service to halt access to some costly cancer drugs&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;PARIS (Reuters) - Taiwan has reported an outbreak of the highly pathogenic H5N8 bird flu virus on a goose farm, the World Organization for Animal Health (OIE) said on Monday.&quot;, &quot;title&quot;: &quot;Taiwan reports H5N8 bird flu outbreak: OIE&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters Health) - People who ate the most fiber were less likely to die of any cause during a recent study of nearly one million people.&quot;, &quot;title&quot;: &quot;Higher-fiber diet linked to lower risk of death&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON/ZURICH (Reuters) - Johnson &amp; Johnson boosted its research efforts into battling Alzheimer&apos;s on Monday, striking a deal potentially worth more than $500 million to develop anti-tau vaccines with Swiss biotech firm AC Immune.&quot;, &quot;title&quot;: &quot;J&amp;J strikes Alzheimer&apos;s research deal with Swiss firm AC Immune&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters) - The U.S. Food and Drug Administration approved AbbVie Inc&apos;s treatment for Parkinson&apos;s disease.&quot;, &quot;title&quot;: &quot;AbbVie wins U.S. approval for Parkinson&apos;s treatment&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters) - Privately held 23andMe Inc said Pfizer Inc would have access to its research services, helping the pharmaceutical giant better understand the lupus disease.&quot;, &quot;title&quot;: &quot;Pfizer partners with DNA research firm to study lupus disease&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;WASHINGTON (Reuters) - The U.S. Supreme Court on Monday declined to take up another broad challenge to President Barack Obama&apos;s signature healthcare law.&quot;, &quot;title&quot;: &quot;Supreme Court rejects new challenge to Obamacare law&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - A British nurse diagnosed with Ebola last month is recovering and is no longer in a critical condition, the London hospital treating her said in a statement on Monday.&quot;, &quot;title&quot;: &quot;British Ebola patient recovering, no longer critical, says hospital&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters) - Drug developer Arrowhead Research Corp said the U.S. Food and Drug Administration placed the company&apos;s experimental hepatitis B treatment on partial clinical hold, seeking additional data from the drug&apos;s mid-stage study.&quot;, &quot;title&quot;: &quot;FDA places Arrowhead Hepatitis B drug on partial hold, shares plunge&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;NEW YORK (Reuters) - Americans will continue to flock to indoor cycling, interval training, group fitness classes and other calorie-burning activities in 2015, but now hi-tech devices will monitor their every waking - and sleeping - hours, fitness experts say.&quot;, &quot;title&quot;: &quot;Hi-tech trackers will play big role in fitness in 2015 - experts&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON, (Reuters) - Developing and bringing to market effective Ebola vaccines requires extreme measures and unprecedented international cooperation, global health experts said on Monday.&quot;, &quot;title&quot;: &quot;&apos;Extreme measures&apos; needed to see Ebola shot development through&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - Millions more students worldwide could train as doctors and nurses using electronic learning, which is just as effective as traditional medical training, a review commissioned by the World Health Organization has found.&quot;, &quot;title&quot;: &quot;E-learning matches traditional training for doctors, nurses: review&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;LONDON (Reuters) - AstraZeneca said on Monday its MedImmune biotech unit had struck a deal with unlisted U.S. company Omnis Pharmaceuticals on the development of cancer-fighting oncolytic viruses.&quot;, &quot;title&quot;: &quot;AstraZeneca in cancer viruses deal with Omnis Pharmaceuticals&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;PARIS (Reuters) - The European Medicines Agency has agreed to review an application by Sanofi and Regeneron for their cholesterol-lowering drug alirocumab, the pharmaceutical groups said in a statement on Monday.&quot;, &quot;title&quot;: &quot;Sanofi, Regeneron submit new cholesterol drug to EMA for review&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters) - Merck &amp; Co has put on fast track its plans to submit new drugs for hepatitis C and lung cancer for regulatory approval, in an attempt to close the gap with competitors in two lucrative segments, the Wall Street Journal reported.&quot;, &quot;title&quot;: &quot;Merck speeds up drug-submission plans for Hep C, lung cancer: WSJ&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;(Reuters) - Bristol-Myers Squibb Co said the independent data monitoring committee concluded that a late stage study evaluating Opdivo versus docetaxel in previously treated patients with advanced, squamous cell non-small cell lung cancer met its endpoint.&quot;, &quot;title&quot;: &quot;Bristol-Myers says panel finds Opdivo lung cancer study meets endpoint&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;SEATTLE (Reuters) - Strains of listeria bacteria found inside a California apple processing plant are believed to be the same ones associated with an outbreak that killed seven people and sickened dozens of others last year, federal officials said.&quot;, &quot;title&quot;: &quot;California apple plant linked to deadly listeria outbreak: FDA&quot;}
+{&quot;category&quot;: &quot;health&quot;, &quot;summary&quot;: &quot;NEW YORK (Reuters) - Thousands of Haitians killed or sickened by a cholera epidemic that they blame on U.N. peacekeepers cannot sue the United Nations in a U.S. court because the U.N. has legal immunity that only it can waive, a judge has ruled.&quot;, &quot;title&quot;: &quot;U.S. judge rules Haitians cannot sue U.N. for cholera epidemic&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* AmericansourceBergen down 1.4 pct (Adds analysts comments; updates shares)&quot;, &quot;title&quot;: &quot;UPDATE 2-AmerisourceBergen enters animal health market with $2.5 bln deal&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Novartis AG : * Says plans 2015 registration trial of ctl019 in acute lymphoblastic leukemia&quot;, &quot;title&quot;: &quot;BRIEF-Novartis plans 2015 registration trial of leukemia drug&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;LONDON, Jan 12 (Reuters) - Several expensive cancer medicines will no longer be available on Britain&apos;s state-funded National Health Service (NHS) following an overhaul of an over-budget drug funding scheme, NHS England said on Monday.&quot;, &quot;title&quot;: &quot;Britain&apos;s health service to halt access to some costly cancer drugs&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* CEO says listing is among options for company&apos;s future (Adds comments from AC Immune CEO)&quot;, &quot;title&quot;: &quot;UPDATE 2-J&amp;J strikes Alzheimer&apos;s research deal with Swiss firm AC Immune&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - The U.S. Food and Drug Administration approved AbbVie Inc&apos;s treatment for Parkinson&apos;s disease.&quot;, &quot;title&quot;: &quot;CORRECTED-AbbVie wins U.S. approval for Parkinson&apos;s treatment&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Merck &amp; Co said it would fast track its plans to submit new drugs for hepatitis C and lung cancer for regulatory approval.&quot;, &quot;title&quot;: &quot;UPDATE 1-Merck speeds up drug-submission plans for Hep C, lung cancer&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - The following financial services industry appointments were announced on Monday. To inform us of other job changes, email moves@thomsonreuters.com.&quot;, &quot;title&quot;: &quot;MOVES-Blackstone, KKR, National Bank of Abu Dhabi, Houlihan Lokey&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Privately held 23andMe Inc said Pfizer Inc would have access to its research services, helping the pharmaceutical giant better understand the lupus disease.&quot;, &quot;title&quot;: &quot;Pfizer partners with DNA research firm to study lupus disease&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;LONDON, Jan 12 (Reuters) - A British nurse diagnosed with Ebola last month is recovering and is no longer in a critical condition, the London hospital treating her said in a statement on Monday.&quot;, &quot;title&quot;: &quot;UPDATE 1-British Ebola patient recovering, no longer critical, says hospital&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;WASHINGTON, Jan 12 (Reuters) - The U.S. Supreme Court on Monday declined to take up another broad challenge to President Barack Obama&apos;s signature healthcare law.&quot;, &quot;title&quot;: &quot;U.S. top court rejects new challenge to Obamacare law&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Guangzhou Baiyunshan Pharmaceutical Holdings Co Ltd&quot;, &quot;title&quot;: &quot;BRIEF-Baiyunshan Pharma to raise up to 10 bln yuan in private placement of A-shares&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - The following bids, mergers, acquisitions and disposals were reported by 1430 GMT on Monday:&quot;, &quot;title&quot;: &quot;Deals of the day- Mergers and acquisitions&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* Financial supervisory authority of Norway has approved prospectus in connection with completed private placement Source text for Eikon: Further company coverage: (Gdynia Newsroom)&quot;, &quot;title&quot;: &quot;BRIEF-Nel ASA: approved prospectus&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;STOCKHOLM, Jan 12 (Reuters) - Outgoing Getinge Chief Executive Johan Malmquist said on Monday that his decision to step down had nothing to with any new developments in ongoing discussions with the U.S. Food and Drug Administration (FDA) over quality controls.&quot;, &quot;title&quot;: &quot;Getinge CEO says resignation unrelated to any FDA developments&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* Indexes off: Dow 0.49 pct, S&amp;P 0.55 pct, Nasdaq 0.41 pct (Updates to market open)&quot;, &quot;title&quot;: &quot;US STOCKS-Wall Street falls as oil prices weigh on energy sector&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;LONDON, Jan 12 (Reuters) - A British nurse diagnosed with Ebola last month is recovering and is no longer in a critical condition, the London hospital treating her said in a statement on Monday.&quot;, &quot;title&quot;: &quot;British Ebola patient recovering, no longer critical, says hospital&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* Futures up: Dow 27 pts, S&amp;P 2.75 pts, Nasdaq 8 pts (Adds quote, updates prices)&quot;, &quot;title&quot;: &quot;US STOCKS-Wall Street set to open flat ahead of earnings&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Medical technology group Getinge said on Monday its long-time Chief Executive Johan Malmquist was stepping down, sending shares of the firm sharply lower.&quot;, &quot;title&quot;: &quot;UPDATE 1-Getinge&apos;s long-time CEO Malmquist to step down, shares fall&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;Jan 12 (Reuters) - Pharmaceutical products distributor AmerisourceBergen Corp said it will buy MWI Veterinary Supply Inc for about $2.5 billion to enter the market for animal health products distribution.&quot;, &quot;title&quot;: &quot;REFILE-UPDATE 1-AmerisourceBergen to buy MWI Veterinary for about $2.5 bln&quot;}
+{&quot;category&quot;: &quot;healthcare&quot;, &quot;summary&quot;: &quot;* Futures up: Dow 56 pts, S&amp;P 14.25 pts, Nasdaq 7.25 pts (Adds premarket actives)&quot;, &quot;title&quot;: &quot;US STOCKS-Futures advance ahead of earnings after two-week drop&quot;}
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We&#39;ve put the complete code for our python feed scraper in <code>flu_news/news_streaming/news_rss_collector.py</code></p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Using-Flume-to-Transport-Data">Using Flume to Transport Data<a class="anchor-link" href="#Using-Flume-to-Transport-Data">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Transporting data with a Flume agent is easy.  We simply need to define 3 components:</p>
+<ul>
+<li>A source, which picks up data</li>
+<li>A channel, which holds data until delivery</li>
+<li>And a sink, which delivers data to a receiver -- this could be a file, a streaming agent, or another Flume agent.</li>
+</ul>
+<p>These components are defined in a configuration file as follows.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[2]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>cat ../flu_news/news_streaming/flu_news_flume_config
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+# example.conf: A single-node Flume configuration
+
+# Name the components on this agent
+newsAgent.sources = r1
+newsAgent.sinks = k1
+newsAgent.channels = c1
+
+# Describe/configure the source
+newsAgent.sources.r1.type = exec
+newsAgent.sources.r1.command = ./news_rss_collector.py
+
+# Describe the sink
+newsAgent.sinks.k1.type = avro
+newsAgent.sinks.k1.channel = c1
+newsAgent.sinks.k1.hostname = localhost
+newsAgent.sinks.k1.port = 44444
+
+# Use a channel which buffers events in memory
+newsAgent.channels.c1.type = memory
+newsAgent.channels.c1.capacity = 1000
+newsAgent.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+newsAgent.sources.r1.channels = c1
+newsAgent.sinks.k1.channel = c1
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In this configuration, our source is an <code>exec</code> source.  It runs a program for us and collects the output.</p>
+<p>The channel is a simple memory buffer.  It can hold on to a limited number of events (or messages).  Once it&#39;s full, it will not accept any new data until its emptied by a sink.</p>
+<p>The sink is an <code>avro</code> sink.  It uses the <a href="http://avro.apache.org/">Avro</a> data format to push output serialized data to any service listening for data on the specified host and port (in our case <code>localhost</code> and <code>44444</code>).</p>
+<p>Finally, we connect the source and the sink together through the channel.  The source and sink both have channel parameters -- if they&#39;re set to the same channel, they&#39;re connected.</p>
+<p>Once configured, we need a way to start our flume agent.  There&#39;s a script in <code>flu_news/news_streaming/start_flume.sh</code> which does this, but what it&#39;s really doing is running a flume command with our config script.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[4]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>cat ../flu_news/news_streaming/start_flume.sh
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+#! /bin/bash
+flume-ng agent --name newsAgent --conf-file ./flu_news_flume_config -f /usr/lib/flume-ng/conf/flume-conf.properties.template -Dflume.root.logger=DEBUG,console
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>That&#39;s all we need to get flume collecting news data and sending it to Spark Streaming!</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Using-Spark-Streaming-to-Search-Streams">Using Spark Streaming to Search Streams<a class="anchor-link" href="#Using-Spark-Streaming-to-Search-Streams">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now that we have a data stream ready to process, we need to build a Spark Streaming application to process that data.  Our aim is simple: process the JSON records, keep track of how many articles we&#39;ve seen, and write any articles about the flu to disk for later use.</p>
+<p>This all happens in our scala code, so let&#39;s look at the <code>NewsStreamer.scala</code> class.</p>
+<p>First, we have a case class for our <code>RSSItem</code>s, this will make it easy to parse the JSON data using <code>json4s</code>.</p>
+<p>Next, we have the <code>containsFlu</code> method.  We&#39;ll use this simple match-case funtion to filter records of interest from the data stream.</p>
+<p>The <code>main</code> method contains most of the interesting code about connecting to and processing our data stream.</p>
+<ul>
+<li>We need a special context for streaming jobs.<br>This <code>StreamingContext</code> takes a configuration and the time each data processing batch takes.  We&#39;ll be working on a 30 second interval, but Spark can go faster.</li>
+</ul>
+<ul>
+<li>We create a Flume stream called <code>flumeStream</code> which listens on the specified host and port for an avro data stream.
+This is stream is a <code>DStreamRDD</code> and will be the primary RDD on which our program operates.</li>
+</ul>
+<ul>
+<li>We&#39;ll use our case class and json4s to make an RDD which contains <code>RSSItem</code> objects from our JSON data.<br>This is accomplished exactly as it would be in a non-streaming application, but in this case it&#39;s applied to each batch of streaming data.</li>
+</ul>
+<ul>
+<li>We can filter the resulting RDD <code>rssData</code> using our <code>containsFlu</code> function.</li>
+</ul>
+<ul>
+<li>Using the <code>print</code> method, we can count up and print what&#39;s found in each 30-second batch.</li>
+</ul>
+<ul>
+<li><p>If we&#39;ve found flu data, we want to write it to HDFS.<br>Spark Streaming provides a <code>saveAsTextFile</code> method just like Spark core, but it writes files for each batch.  Since not all news is about the flu, that would mean a lot of empty files.  Instead, we want to only write to HDFS if the count of flu records in the batch is greater than zero.</p>
+<p>For this, we need to use the <code>forEachRDD</code> method.  A <code>DStream</code> is actually made up of a number of RDDs, so we&#39;ll need to process each of them.</p>
+</li>
+</ul>
+<ul>
+<li>Finally, we actually start our streaming program.<br>This is done by calling <code>start()</code>.  The <code>awaitTermination</code> call provides the listening function to process data on the stream until the program is terminated.</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[6]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>cat ../flu_news/news_streaming/news_streamer/src/main/scala/com/oracle/newsstream/NewsStreamer.scala
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+package com.oracle.newsstream
+
+import org.json4s._
+import org.json4s.jackson.Serialization.{read,write}
+import org.apache.spark._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd._
+import org.apache.spark.streaming._
+import org.apache.spark.streaming.StreamingContext._
+import org.apache.spark.streaming.flume._
+import scala.collection.immutable.StringOps
+
+
+case class RSSItem(category : String, title : String, summary : String)
+
+
+object NewsStreamer {
+    def containsFlu(x : String): Boolean = x match {
+      case x if x contains &quot; flu &quot; =&gt; true
+      case x if x contains &quot; influenza &quot; =&gt; true
+      case x if x contains &quot; disease &quot; =&gt; true
+      case x if x contains &quot; outbreak &quot; =&gt; true
+      case x if x contains &quot; H1N1 &quot; =&gt; true
+      case x if x contains &quot; H5N1 &quot; =&gt; true
+      case x if x contains &quot; sick &quot; =&gt; true
+      case _ =&gt; false
+    }
+
+  def main(args : Array[String]) = {
+    val conf = new SparkConf().setAppName(&quot;NewsStreamer&quot;)
+    val ssc = new StreamingContext(conf, Seconds(30))
+    
+    val flumeStream = FlumeUtils.createStream(ssc, &quot;localhost&quot;, 44444)
+    val rssData = flumeStream.map(record =&gt; {
+	implicit val formats = DefaultFormats
+        read[RSSItem](new String(record.event.getBody().array()))
+	})
+    val healthSummaries = rssData.filter(x =&gt; containsFlu(x.summary))
+
+    // print batch summaries to the screen
+    rssData.count().map(cnt =&gt; &quot;rss recv &quot; + cnt + &quot; events&quot;).print()
+
+    val hsc = healthSummaries.count()
+    hsc.map(cnt =&gt; &quot;health summaries recv &quot; + cnt + &quot; events&quot;).print()
+    
+    //write health data out to HDFS
+    val now: Long = System.currentTimeMillis
+    healthSummaries.foreachRDD(r =&gt; {
+	    if (r.count() &gt; 0) {
+              r.map(item =&gt; {
+                implicit val formats = DefaultFormats
+                write(item)
+		  }).saveAsTextFile(&quot;/user/oracle/flu_streaming/flu_stream-&quot;+now.toString())
+		}
+	})
+    ssc.start()
+    ssc.awaitTermination()
+  }
+}
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Building our Spark Streaming app is slightly different from our standalone news clustering app.  In this case, we need to include a number of libraries which are not necessarily available on every node in a Spark cluster.  This means we need to provide them in our JAR file.</p>
+<p>The <code>sbt</code> <em>assembly</em> plugin makes this possible.  It builds an all-encompassing JAR which includes all the libraries we need.  To add it to our project, we create a file called <code>assembly.sbt</code>.  In the file, we add the plug-in and version.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[10]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>cat ../flu_news/news_streaming/news_streamer/project/assembly.sbt
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+addSbtPlugin(&quot;com.eed3si9n&quot; % &quot;sbt-assembly&quot; % &quot;0.12.0&quot;)
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Adding <code>assembly</code> means some changes to our <code>built.sbt</code> file as well.  We need to exclude libraries we know the Spark cluster will have, and decide how to handle conflicting versions.  Check out the <code>build.sbt</code> below for one possible way of doing this. </p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[7]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>cat ../flu_news/news_streaming/news_streamer/build.sbt
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+name := &quot;NewsStreamer&quot;
+version := &quot;0.1&quot;
+scalaVersion := &quot;2.10.4&quot;
+libraryDependencies ++= Seq(
+&quot;org.apache.spark&quot; %% &quot;spark-core&quot; % &quot;1.1.0&quot; % &quot;provided&quot;, 
+&quot;org.apache.spark&quot; %% &quot;spark-streaming&quot; % &quot;1.1.0&quot; % &quot;provided&quot;,
+&quot;org.apache.spark&quot; % &quot;spark-streaming-flume_2.10&quot; % &quot;1.1.0&quot; ,
+&quot;org.apache.hadoop&quot; % &quot;hadoop-client&quot; % &quot;2.3.0-cdh5.1.2&quot;,
+&quot;org.json4s&quot; %% &quot;json4s-jackson&quot; % &quot;3.2.11&quot;,
+&quot;org.json4s&quot; %% &quot;json4s-native&quot; % &quot;3.2.11&quot;).map({dep =&gt;
+dep.exclude(&quot;org.mortbay.jetty&quot;, &quot;servlet-api&quot;).
+        exclude(&quot;commons-beanutils&quot;, &quot;commons-beanutils-core&quot;).
+        exclude(&quot;commons-collections&quot;, &quot;commons-collections&quot;).
+        exclude(&quot;commons-collections&quot;, &quot;commons-collections&quot;).
+	exclude(&quot;commons-logging&quot;, &quot;commons-logging&quot;).
+        exclude(&quot;com.esotericsoftware.minlog&quot;, &quot;minlog&quot;).
+        exclude(&quot;asm&quot;, &quot;asm&quot;).			     
+        exclude(&quot;org.apache.hadoop&quot;, &quot;hadoop-yarn-common&quot;)
+})
+resolvers += &quot;Akka Repository&quot; at &quot;http://repo.akka.io/releases/&quot;
+resolvers += &quot;Cloudera Repository&quot; at &quot;https://repository.cloudera.com/artifactory/cloudera-repos/&quot;
+
+mainClass in assembly := Some(&quot;com.oracle.newsstream.NewsStreamer&quot;)
+
+mergeStrategy in assembly &lt;&lt;= (mergeStrategy in assembly) { (old) =&gt;
+  {
+    case x if x.startsWith(&quot;META-INF/ECLIPSEF.RSA&quot;) =&gt; MergeStrategy.last
+    case x if x.startsWith(&quot;META-INF/mailcap&quot;) =&gt; MergeStrategy.last
+    case x if x.startsWith(&quot;META-INF/mimetypes&quot;) =&gt; MergeStrategy.last
+    case x if x.startsWith(&quot;plugin.properties&quot;) =&gt; MergeStrategy.last
+    case x if x.startsWith(&quot;javax&quot;) =&gt; MergeStrategy.first
+    case x =&gt; old(x)
+  }
+}
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We can package up our app using <code>sbt</code> using the assembly directive.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">sbt</span> <span class="n">assembly</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We can start our streaming application using <code>spark-submit</code></p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[2]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>spark-submit --class com.oracle.newsstream.NewsStreamer /home/oracle/odsb2014_2/flu_news/news_streaming/news_streamer/target/scala-2.10/NewsStreamer-assembly-0.1.jar
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+SLF4J: Class path contains multiple SLF4J bindings.
+SLF4J: Found binding in [jar:file:/usr/lib/spark/assembly/lib/spark-assembly-1.1.0-cdh5.2.0-hadoop2.5.0-cdh5.2.0.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: Found binding in [jar:file:/usr/lib/zookeeper/lib/slf4j-log4j12-1.7.5.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J: Actual binding is of type [org.slf4j.impl.Log4jLoggerFactory]
+-------------------------------------------
+Time: 1422474090000 ms
+-------------------------------------------
+rss recv 20 events
+
+-------------------------------------------
+Time: 1422474090000 ms
+-------------------------------------------
+health summaries recv 0 events
+
+-------------------------------------------
+Time: 1422474120000 ms
+-------------------------------------------
+rss recv 20 events
+
+-------------------------------------------
+Time: 1422474120000 ms
+-------------------------------------------
+health summaries recv 0 events
+
+^C
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Start the flume agent using the <code>start_flume.sh</code> script, and watch the records come in!  We can look at the output in HDFS as well.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[4]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>hdfs dfs -ls /user/oracle/flu_streaming
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+Found 2 items
+drwxr-xr-x   - oracle oracle          0 2015-01-14 15:17 /user/oracle/flu_streaming/flu_stream-1421266535
+drwxr-xr-x   - oracle oracle          0 2015-01-28 14:37 /user/oracle/flu_streaming/flu_stream-1422473748624
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[6]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">!</span>hdfs dfs -cat /user/oracle/flu_streaming/flu_stream*/*
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+{&quot;category&quot;:&quot;health&quot;,&quot;title&quot;:&quot;Woman dies in Egypt of H5N1 bird flu, second death this year&quot;,&quot;summary&quot;:&quot;CAIRO (Reuters) - A 65-year-old Egyptian woman has died from the H5N1 strain of bird flu, the health ministry said on Wednesday, the second victim of the virus this month.&quot;}
+{&quot;category&quot;:&quot;health&quot;,&quot;title&quot;:&quot;Diagnostics, Tamiflu help Roche full-year sales beat poll&quot;,&quot;summary&quot;:&quot;ZURICH (Reuters) - Swiss drugmaker Roche expects sales and profits to grow at a similar pace to last year, after a strong performance by its diagnostics unit and flu drug Tamiflu helped full-year sales beat expectations.&quot;}
+{&quot;category&quot;:&quot;health&quot;,&quot;title&quot;:&quot;Start worrying about cholesterol in your 30s, study suggests&quot;,&quot;summary&quot;:&quot;(Reuters Health) – People with even moderately high cholesterol levels in their 30s and 40s are more likely to have heart disease later in life, according to a new study.&quot;}
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Summary">Summary<a class="anchor-link" href="#Summary">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>While this exercise didn&#39;t examine the flu in detail, we have managed to build an end-to-end data pipeline which will help us monitor news about the flu.  We&#39;ve used a lot of components in this exercise:</p>
+<ul>
+<li>We used <code>feedparser</code> to grab RSS feeds in python</li>
+<li>We set up a Flume agent to collect RSS feeds and transmit them to Spark Streaming</li>
+<li>We build a Spark Streaming agent to process RSS items, count them, and store any that have to do with the flu</li>
+</ul>
+<p>From here, we can do any number of things with the incoming flu data.  Try adding some of the machine learning approaches we applied to clustering the news to the streaming case.</p>
+</div>
+</div>
+</div>
+
+{% endblock body %}

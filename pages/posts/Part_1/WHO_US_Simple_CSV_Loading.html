@@ -6,7 +6,6 @@ date: 11-10-2013
 
 {% extends "post.html" %}
 {% block body %}
-
   <div tabindex="-1" id="notebook" class="border-box-sizing">
     <div class="container" id="notebook-container">
 
@@ -15,7 +14,7 @@ date: 11-10-2013
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Loading-and-Sharing-Simple-CSV-Data">Loading and Sharing Simple CSV Data<a class="anchor-link" href="#Loading-and-Sharing-Simple-CSV-Data"></a></h1>
+<h1 id="Loading-and-Sharing-Simple-CSV-Data">Loading and Sharing Simple CSV Data<a class="anchor-link" href="#Loading-and-Sharing-Simple-CSV-Data">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -25,16 +24,16 @@ date: 11-10-2013
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Sometimes we get lucky with the datasets we find: they're formatted just right, and in a format everyone can read. The most common of these would be a CSV or delimited-text file. All the columns are present on each row, delimited by the same character: all we need to do is parse and load the file.</p>
-<p>There are lots of tools to do this with most databases. Oracle provides <code>SQL*Loader</code> as well as external table capabilities for this. MySQL can use the <code>LOAD DATA INFILE</code> directive to quickly load CSV data. However, we're going to use Python to illustrate how we can quickly connect this analysis-ready scripting languge to our database.</p>
-<p>We'll focus on cx-Oracle, a python module designed to connect to Oracle database.</p>
+<p>Sometimes we get lucky with the datasets we find: they&#39;re formatted just right, and in a format everyone can read.  The most common of these would be a CSV or delimited-text file.  All the columns are present on each row, delimited by the same character: all we need to do is parse and load the file.  The <a href="http://www.cdc.gov/flu/weekly/fluviewinteractive.htm">Centers for Disease Control</a> provides a way to download just this kind of read-to-consume data about flu rates in the US.</p>
+<p>There are lots of tools to do this with most databases.  Oracle provides <code>SQL*Loader</code> as well as external table capabilities for this.  MySQL can use the <code>LOAD DATA INFILE</code> directive to quickly load CSV data.  However, we&#39;re going to use Python to illustrate how we can quickly connect this analysis-ready scripting languge to our database.</p>
+<p>We&#39;ll focus on cx-Oracle, a python module designed to connect to Oracle database.</p>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[4]:
+In&nbsp;[1]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -55,7 +54,7 @@ In&nbsp;[4]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Since the data is delimited by commas, parsing out the data we want is simple. We'll put it in a function for later use.</p>
+<p>Since the data is delimited by commas, parsing out the data we want is simple.  We&#39;ll put it in a function for later use.</p>
 </div>
 </div>
 </div>
@@ -82,7 +81,7 @@ In&nbsp;[2]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Our data isn't all strings or numbers, so we'll have to write a quick function to type-convert the rows. We'll write the function to handle a single row, then rely on python's map operator to convert the whole dataset at once.</p>
+<p>Our data isn&#39;t all strings or numbers, so we&#39;ll have to write a quick function to type-convert the rows.  We&#39;ll write the function to handle a single row, then rely on python&#39;s map operator to convert the whole dataset at once. </p>
 </div>
 </div>
 </div>
@@ -115,10 +114,10 @@ In&nbsp;[3]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p><em>write_to_db</em> is the most interesting part of our work. We're going to need to create a table in Oracle 12c and then fill it with rows. We do this by passing SQL language statements through cx-Oracle to the database. Notice we create a <strong>cursor</strong> in the method. A cursor is the structure which allows us to traverse over records in a database and execute commands. Any time we use cx-Oracle, we'll create a cursor.</p>
+<p><em>write_to_db</em> is the most interesting part of our work.  We&#39;re going to need to create a table in Oracle 12c and then fill it with rows.  We do this by passing SQL language statements through cx-Oracle to the database.  Notice we create a <strong>cursor</strong> in the method.  A cursor is the structure which allows us to traverse over records in a database and execute commands.  Any time we use cx-Oracle, we&#39;ll create a cursor.</p>
 <p>Once we have a cursor, we execute a few statements</p>
 <ul>
-<li>We drop US_WHO_FLU_STATS to make sure there's no stale data</li>
+<li>We drop US_WHO_FLU_STATS to make sure there&#39;s no stale data</li>
 <li>We create the US_WHO_FLU_STATS table, whcih tracks statistics for census regions of the US</li>
 <li>We insert our dataset into the table using the <code>executemany</code> statement</li>
 <li>We save our work to the database by calling <code>db.commit</code></li>
@@ -180,7 +179,7 @@ In&nbsp;[4]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[5]:
+In&nbsp;[2]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -215,14 +214,14 @@ In&nbsp;[]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>We have another CSV file which might help us. It contains mappings of states to their populations and flu surveillance regions. Let's load it in a similar fashion.</p>
+<p>We have another CSV file which might help us.  It contains mappings of states to their populations and flu surveillance regions.  Let&#39;s load it in a similar fashion.</p>
 </div>
 </div>
 </div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[11]:
+In&nbsp;[3]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -241,7 +240,7 @@ In&nbsp;[11]:
 
 
 <div class="output_area"><div class="prompt output_prompt">
-    Out[11]:</div>
+    Out[3]:</div>
 
 
 <div class="output_text output_subarea output_pyout">
@@ -268,7 +267,7 @@ In&nbsp;[11]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[15]:
+In&nbsp;[4]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -284,6 +283,28 @@ In&nbsp;[15]:
 </pre></div>
 
 </div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_text output_pyerr">
+<pre>
+<span class="ansired">---------------------------------------------------------------------------</span>
+<span class="ansired">DatabaseError</span>                             Traceback (most recent call last)
+<span class="ansigreen">&lt;ipython-input-4-436155a3825a&gt;</span> in <span class="ansicyan">&lt;module&gt;</span><span class="ansiblue">()</span>
+<span class="ansigreen">      7</span>   )&quot;&quot;&quot;
+<span class="ansigreen">      8</span> cursor <span class="ansiyellow">=</span> db<span class="ansiyellow">.</span>cursor<span class="ansiyellow">(</span><span class="ansiyellow">)</span><span class="ansiyellow"></span>
+<span class="ansigreen">----&gt; 9</span><span class="ansiyellow"> </span>cursor<span class="ansiyellow">.</span>execute<span class="ansiyellow">(</span>create_state_table<span class="ansiyellow">)</span><span class="ansiyellow"></span>
+
+<span class="ansired">DatabaseError</span>: ORA-00955: name is already used by an existing object
+</pre>
+</div>
+</div>
+
 </div>
 </div>
 

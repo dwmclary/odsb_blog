@@ -1,0 +1,1481 @@
+title: Collecting Web Data with Pandas
+author: Dan McClary
+date: 11-10-2013
+headline: Pandas and WDIs
+
+{% extends "post.html" %}
+{% block body %}
+  <div tabindex="-1" id="notebook" class="border-box-sizing">
+    <div class="container" id="notebook-container">
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="Collecting-Web-Data-with-Pandas">Collecting Web Data with Pandas<a class="anchor-link" href="#Collecting-Web-Data-with-Pandas">&#182;</a></h1>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As we explore how flu interacts with the world around us, it would be useful to have data about countries&#39; populations, GDP, and other indicators of economic and healthcare development.  One place we might look is in the <a href="http://data.worldbank.org/data-catalog/world-development-indicators/">World Bank&#39;s collection of development indicators</a>.</p>
+<p>We&#39;ve looked at a number of ways to collect data from the web, but sometimes useful data is included in the tools that we use.  We could go directly to the World Bank site, download information and then parse it, but it&#39;s actually included in a tool we&#39;ve been using: Pandas.  Pandas includes <a href="http://pandas.pydata.org/pandas-docs/stable/remote_data.html">remote data access</a> for quickly grabbing data about world development, finance, and web traffic.</p>
+<p>In this short workshop, we&#39;ll quickly collect data via Pandas and include it in our database.</p>
+<p>We start with what is becoming a common set of <code>import</code>s</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[1]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="kn">as</span> <span class="nn">mpl</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+<span class="o">%</span><span class="k">matplotlib</span> <span class="n">inline</span>
+<span class="o">%</span><span class="k">load_ext</span> <span class="n">sql</span>
+<span class="o">%</span><span class="k">sql</span> <span class="n">oracle</span><span class="p">:</span><span class="o">//</span><span class="n">fludb</span><span class="p">:</span><span class="n">flushot</span><span class="nd">@localhost</span><span class="p">:</span><span class="mi">1521</span><span class="o">/</span><span class="n">orcl</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[1]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+u&apos;Connected: fludb@orcl&apos;
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Since we&#39;re looking for data about countries, we should start with the list of countries we have data about.  They&#39;re easy to get using SQL.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[2]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">countries</span> <span class="o">=</span> <span class="o">%</span><span class="k">sql</span> <span class="n">select</span> <span class="n">distinct</span><span class="p">(</span><span class="n">country</span><span class="p">)</span> <span class="kn">from</span> <span class="nn">flu_statistics</span>
+<span class="n">countries</span> <span class="o">=</span> <span class="n">countries</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+<span class="n">countries</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+0 rows affected.
+
+</pre>
+</div>
+</div>
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[2]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>country</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>                          Ireland</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>                          Algeria</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>                           Brazil</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td> Lao People's Democratic Republic</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>                          Croatia</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We have the country names, but not the ISO codes by which they are most commonly identified.  Let&#39;s start by using pandas to get the list of country codes from the world bank.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[3]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">from</span> <span class="nn">pandas.io</span> <span class="kn">import</span> <span class="n">wb</span>
+<span class="n">wb_country_codes</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">get_countries</span><span class="p">()[[</span><span class="s">&#39;name&#39;</span><span class="p">,</span> <span class="s">&#39;iso2c&#39;</span><span class="p">]]</span>
+<span class="n">wb_country_codes</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[3]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>name</th>
+      <th>iso2c</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>       Aruba</td>
+      <td> AW</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td> Afghanistan</td>
+      <td> AF</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>      Africa</td>
+      <td> A9</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>      Angola</td>
+      <td> AO</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>     Albania</td>
+      <td> AL</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In order to create a frame which has only the countries (and codes) that we have flu data about, we&#39;ll use pandas <code>merge</code> function.  This is akin to writing a right join in SQL.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[4]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">flu_country_codes</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">countries</span><span class="p">,</span> <span class="n">wb_country_codes</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&quot;right&quot;</span><span class="p">,</span> <span class="n">left_on</span><span class="o">=</span><span class="s">&quot;country&quot;</span><span class="p">,</span> <span class="n">right_on</span><span class="o">=</span><span class="s">&quot;name&quot;</span><span class="p">)[[</span><span class="s">&#39;country&#39;</span><span class="p">,</span><span class="s">&#39;iso2c&#39;</span><span class="p">]]</span>
+<span class="n">flu_country_codes</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[4]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>country</th>
+      <th>iso2c</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>                Ireland</td>
+      <td> IE</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>                Algeria</td>
+      <td> DZ</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>                 Brazil</td>
+      <td> BR</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>                Croatia</td>
+      <td> HR</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>                Denmark</td>
+      <td> DK</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>                  Kenya</td>
+      <td> KE</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>           South Africa</td>
+      <td> ZA</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>                 Serbia</td>
+      <td> RS</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>                 Poland</td>
+      <td> PL</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td> Bosnia and Herzegovina</td>
+      <td> BA</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="World-Population">World Population<a class="anchor-link" href="#World-Population">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Now that we have our ISO codes, we can use pandas to get data on the world&#39;s population.  We&#39;ll need this to normalize things like the number of flu cases in each country.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[37]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">world_population</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;sp.pop.totl&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+<span class="n">world_population</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stderr output_text">
+<pre>
+/usr/lib64/python2.6/site-packages/pandas/io/wb.py:128: UserWarning: Non-standard ISO country codes: 1A, 1W, 4E, 7E, 8S, A4, A5, A9, B8, C4, C5, C6, C7, C8, C9, EU, F1, JG, KV, L4, L5, L6, L7, M2, OE, S1, S2, S3, S4, XC, XD, XE, XJ, XL, XM, XN, XO, XP, XQ, XR, XS, XT, XU, XY, Z4, Z7, ZF, ZG, ZJ, ZQ
+  warnings.warn(&apos;Non-standard ISO country codes: %s&apos; % tmp)
+
+</pre>
+</div>
+</div>
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[37]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>sp.pop.totl</th>
+    </tr>
+    <tr>
+      <th>country</th>
+      <th>year</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Aruba</th>
+      <th>2013</th>
+      <td>   102911</td>
+    </tr>
+    <tr>
+      <th>Andorra</th>
+      <th>2013</th>
+      <td>    79218</td>
+    </tr>
+    <tr>
+      <th>Afghanistan</th>
+      <th>2013</th>
+      <td> 30551674</td>
+    </tr>
+    <tr>
+      <th>Angola</th>
+      <th>2013</th>
+      <td> 21471618</td>
+    </tr>
+    <tr>
+      <th>Albania</th>
+      <th>2013</th>
+      <td>  2773620</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We might also care about the percentage of a country&#39;s population that lives in cities.  There&#39;s a World Bank Development Indicator for that as well.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[38]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">urban_population</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SP.URB.TOTL.IN.ZS&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+<span class="n">urban_population</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[38]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>SP.URB.TOTL.IN.ZS</th>
+    </tr>
+    <tr>
+      <th>country</th>
+      <th>year</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Aruba</th>
+      <th>2013</th>
+      <td> 42.058</td>
+    </tr>
+    <tr>
+      <th>Andorra</th>
+      <th>2013</th>
+      <td> 86.165</td>
+    </tr>
+    <tr>
+      <th>Afghanistan</th>
+      <th>2013</th>
+      <td> 25.871</td>
+    </tr>
+    <tr>
+      <th>Angola</th>
+      <th>2013</th>
+      <td> 42.490</td>
+    </tr>
+    <tr>
+      <th>Albania</th>
+      <th>2013</th>
+      <td> 55.383</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>If we&#39;re getting urban population, we should probably grab the percentage which is rural and the growth in population as well.  Each of these is just a download away.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[39]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">rural_population</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SP.RUR.TOTL.ZS&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+<span class="n">population_growth</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SP.POP.GROW&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>With all of this population-related data, it makes sense to put them together into a single DataFrame.  We can use <code>pd.merge</code> again to do this; this time we&#39;re performing the equivalent of a left-join in SQL.  The result is a single DataFrame with all of our data.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[46]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">population_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">world_population</span><span class="p">,</span> <span class="n">urban_population</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">population_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">population_frame</span><span class="p">,</span> <span class="n">rural_population</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">population_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">population_frame</span><span class="p">,</span> <span class="n">population_growth</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">population_frame</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;total_population&#39;</span><span class="p">,</span> <span class="s">&#39;urban_pop_percent&#39;</span><span class="p">,</span> <span class="s">&#39;rural_pop_percent&#39;</span><span class="p">,</span> <span class="s">&#39;pop_grow&#39;</span><span class="p">]</span>
+<span class="n">population_frame</span><span class="p">[:</span><span class="mi">10</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[46]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>total_population</th>
+      <th>urban_pop_percent</th>
+      <th>rural_pop_percent</th>
+      <th>pop_grow</th>
+    </tr>
+    <tr>
+      <th>country</th>
+      <th>year</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Aruba</th>
+      <th>2013</th>
+      <td>    102911</td>
+      <td> 42.058000</td>
+      <td> 57.942000</td>
+      <td> 0.513409</td>
+    </tr>
+    <tr>
+      <th>Andorra</th>
+      <th>2013</th>
+      <td>     79218</td>
+      <td> 86.165000</td>
+      <td> 13.835000</td>
+      <td> 1.088995</td>
+    </tr>
+    <tr>
+      <th>Afghanistan</th>
+      <th>2013</th>
+      <td>  30551674</td>
+      <td> 25.871000</td>
+      <td> 74.129000</td>
+      <td> 2.408807</td>
+    </tr>
+    <tr>
+      <th>Angola</th>
+      <th>2013</th>
+      <td>  21471618</td>
+      <td> 42.490000</td>
+      <td> 57.510000</td>
+      <td> 3.079269</td>
+    </tr>
+    <tr>
+      <th>Albania</th>
+      <th>2013</th>
+      <td>   2773620</td>
+      <td> 55.383000</td>
+      <td> 44.617000</td>
+      <td>-1.006627</td>
+    </tr>
+    <tr>
+      <th>Arab World</th>
+      <th>2013</th>
+      <td> 369761523</td>
+      <td> 57.339136</td>
+      <td> 42.660864</td>
+      <td> 2.012570</td>
+    </tr>
+    <tr>
+      <th>United Arab Emirates</th>
+      <th>2013</th>
+      <td>   9346129</td>
+      <td> 84.981000</td>
+      <td> 15.019000</td>
+      <td> 1.514471</td>
+    </tr>
+    <tr>
+      <th>Argentina</th>
+      <th>2013</th>
+      <td>  41446246</td>
+      <td> 91.452000</td>
+      <td>  8.548000</td>
+      <td> 0.870732</td>
+    </tr>
+    <tr>
+      <th>Armenia</th>
+      <th>2013</th>
+      <td>   2976566</td>
+      <td> 62.975000</td>
+      <td> 37.025000</td>
+      <td> 0.251781</td>
+    </tr>
+    <tr>
+      <th>American Samoa</th>
+      <th>2013</th>
+      <td>     55165</td>
+      <td> 87.334000</td>
+      <td> 12.666000</td>
+      <td> 0.067094</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We&#39;d like to put this information in our database, both to avoid re-downloading it and to enable SQL access over it.  To do that quickly, we&#39;ll transform the frame into delimite data, then use ipython-sql to insert the data into our database.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[5]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="kn">from</span> <span class="nn">StringIO</span> <span class="kn">import</span> <span class="n">StringIO</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[10]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">output</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+<span class="n">population_frame</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+
+<span class="n">population_data</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+<span class="n">output</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="n">population_data</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_text output_pyerr">
+<pre>
+<span class="ansired">---------------------------------------------------------------------------</span>
+<span class="ansired">NameError</span>                                 Traceback (most recent call last)
+<span class="ansigreen">&lt;ipython-input-10-d2f56ff9aaeb&gt;</span> in <span class="ansicyan">&lt;module&gt;</span><span class="ansiblue">()</span>
+<span class="ansigreen">      1</span> <span class="ansigreen">from</span> StringIO <span class="ansigreen">import</span> StringIO<span class="ansiyellow"></span>
+<span class="ansigreen">      2</span> output <span class="ansiyellow">=</span> StringIO<span class="ansiyellow">(</span><span class="ansiyellow">)</span><span class="ansiyellow"></span>
+<span class="ansigreen">----&gt; 3</span><span class="ansiyellow"> </span>population_frame<span class="ansiyellow">.</span>to_csv<span class="ansiyellow">(</span>output<span class="ansiyellow">,</span> sep<span class="ansiyellow">=</span><span class="ansiblue">&quot;|&quot;</span><span class="ansiyellow">)</span><span class="ansiyellow"></span>
+<span class="ansigreen">      4</span> <span class="ansiyellow"></span>
+<span class="ansigreen">      5</span> population_data <span class="ansiyellow">=</span> output<span class="ansiyellow">.</span>getvalue<span class="ansiyellow">(</span><span class="ansiyellow">)</span><span class="ansiyellow">.</span>split<span class="ansiyellow">(</span><span class="ansiblue">&quot;\n&quot;</span><span class="ansiyellow">)</span><span class="ansiyellow">[</span><span class="ansicyan">1</span><span class="ansiyellow">:</span><span class="ansiyellow">]</span><span class="ansiyellow"></span>
+
+<span class="ansired">NameError</span>: name &apos;population_frame&apos; is not defined</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>With the data ready for insert, we now create a table.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[90]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">%%</span><span class="k">sql</span> <span class="n">create</span> <span class="n">table</span> <span class="n">population_info</span> <span class="p">(</span><span class="n">country</span> <span class="n">VARCHAR2</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="n">year</span> <span class="n">NUMBER</span><span class="p">,</span> <span class="n">total_pop</span> <span class="n">NUMBER</span><span class="p">,</span> 
+                                    <span class="n">urban_pop</span> <span class="n">NUMBER</span><span class="p">,</span> <span class="n">rural_pop</span> <span class="n">NUMBER</span><span class="p">,</span>
+                                    <span class="n">pop_grow</span> <span class="n">NUMBER</span><span class="p">,</span> <span class="n">primary</span> <span class="n">key</span><span class="p">(</span><span class="n">country</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[90]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+[]
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>And then insert the data</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre> <span class="o">%</span><span class="k">config</span> <span class="n">SqlMagic</span><span class="o">.</span><span class="n">feedback</span> <span class="o">=</span> <span class="bp">False</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[91]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">population_data</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">total_pop</span><span class="p">,</span> <span class="n">urban_pop</span><span class="p">,</span> <span class="n">rural_pop</span><span class="p">,</span> <span class="n">pop_grow</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+        <span class="o">%</span><span class="k">sql</span> <span class="n">insert</span> <span class="n">into</span> <span class="n">population_info</span> <span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">total_pop</span><span class="p">,</span> <span class="n">urban_pop</span><span class="p">,</span> <span class="n">rural_pop</span><span class="p">,</span> <span class="n">pop_grow</span><span class="p">)</span> <span class="n">values</span> <span class="p">(:</span><span class="n">country</span><span class="p">,</span> <span class="p">:</span><span class="n">year</span><span class="p">,</span> <span class="p">:</span><span class="n">total_pop</span><span class="p">,</span> <span class="p">:</span><span class="n">urban_pop</span><span class="p">,</span> <span class="p">:</span><span class="n">rural_pop</span><span class="p">,</span> <span class="p">:</span><span class="n">pop_grow</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="GDP-Data">GDP Data<a class="anchor-link" href="#GDP-Data">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>We can follow exactly the same procedure to get economic data from the World Bank.  Economic data is essential if we want to understand how national or individual wealth impacts flu susceptability.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[93]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">per_cap_gdp</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;NY.GDP.PCAP.CD&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+<span class="n">gdp</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;NY.GDP.MKTP.CD&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2013</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2013</span><span class="p">)</span>
+<span class="n">gdp_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">gdp</span><span class="p">,</span> <span class="n">per_cap_gdp</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&quot;left&quot;</span><span class="p">,</span><span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">gdp_frame</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;GDP&quot;</span><span class="p">,</span> <span class="s">&quot;PerCapGDP&quot;</span><span class="p">]</span>
+<span class="n">gdp_frame</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[93]:</div>
+
+<div class="output_html rendered_html output_subarea output_pyout">
+<div style="max-height:1000px;max-width:1500px;overflow:auto;">
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>GDP</th>
+      <th>PerCapGDP</th>
+    </tr>
+    <tr>
+      <th>country</th>
+      <th>year</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Aruba</th>
+      <th>2013</th>
+      <td>          NaN</td>
+      <td>         NaN</td>
+    </tr>
+    <tr>
+      <th>Andorra</th>
+      <th>2013</th>
+      <td>          NaN</td>
+      <td>         NaN</td>
+    </tr>
+    <tr>
+      <th>Afghanistan</th>
+      <th>2013</th>
+      <td> 2.030967e+10</td>
+      <td>  664.764589</td>
+    </tr>
+    <tr>
+      <th>Angola</th>
+      <th>2013</th>
+      <td> 1.241782e+11</td>
+      <td> 5783.366760</td>
+    </tr>
+    <tr>
+      <th>Albania</th>
+      <th>2013</th>
+      <td> 1.292324e+10</td>
+      <td> 4659.340601</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>As before, we&#39;ll create a table, dump the output to text, and insert it.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[106]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">%%</span><span class="k">sql</span> <span class="n">create</span> <span class="n">table</span> <span class="n">gdp_data</span> <span class="p">(</span><span class="n">country</span> <span class="n">varchar2</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="n">year</span> <span class="n">number</span><span class="p">,</span> 
+                             <span class="n">gdp</span> <span class="n">number</span><span class="p">,</span> <span class="n">percapgdp</span> <span class="n">number</span><span class="p">,</span> <span class="n">primary</span> <span class="n">key</span><span class="p">(</span><span class="n">country</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[106]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+[]
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[107]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">output</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+<span class="n">gdp_frame</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+
+<span class="n">gdp_data</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+<span class="n">output</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">gdp_data</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">gdp</span><span class="p">,</span> <span class="n">percapgdp</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+            <span class="o">%</span><span class="k">sql</span> <span class="n">insert</span> <span class="n">into</span> <span class="n">gdp_data</span> <span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">gdp</span><span class="p">,</span> <span class="n">percapgdp</span><span class="p">)</span> <span class="n">values</span> <span class="p">(:</span><span class="n">country</span><span class="p">,</span> <span class="p">:</span><span class="n">year</span><span class="p">,</span> <span class="p">:</span><span class="n">gdp</span><span class="p">,</span> <span class="p">:</span><span class="n">percapgdp</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Sanitation,-Water,-Cellular-and-Education">Sanitation, Water, Cellular and Education<a class="anchor-link" href="#Sanitation,-Water,-Cellular-and-Education">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Lastly, we&#39;re going to grab some information about other indicators of development:</p>
+<ul>
+<li>sanitation improvement</li>
+<li>rural improved access to clean water</li>
+<li>urban improved access to clean water</li>
+<li>access to cellular phone service</li>
+<li>percentage of the population with a primary school education or better</li>
+</ul>
+<p>The data here opens up many questions.  Does worse sanitation correlate with higher numbers of flu cases?  Does better education reduce flu cases?</p>
+<p>Just like population and GDP, these indicators are easy to grab.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[6]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">sanitation</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SH.STA.ACSN&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2012</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2012</span><span class="p">)</span>
+<span class="n">safe_rural_water</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SH.H2O.SAFE.RU.ZS&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2012</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2012</span><span class="p">)</span>
+<span class="n">safe_urb_water</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SH.H2O.SAFE.UR.ZS&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2012</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2012</span><span class="p">)</span>
+<span class="n">cellular</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;IT.CEL.SETS.P2&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2012</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2012</span><span class="p">)</span>
+<span class="n">primary_school</span> <span class="o">=</span> <span class="n">wb</span><span class="o">.</span><span class="n">download</span><span class="p">(</span><span class="n">indicator</span><span class="o">=</span><span class="s">&#39;SE.PRM.CMPT.ZS&#39;</span><span class="p">,</span> <span class="n">country</span><span class="o">=</span><span class="n">flu_country_codes</span><span class="p">[</span><span class="s">&#39;iso2c&#39;</span><span class="p">],</span> <span class="n">start</span><span class="o">=</span><span class="mi">2012</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="mi">2012</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stderr output_text">
+<pre>
+/usr/lib64/python2.6/site-packages/pandas/io/wb.py:128: UserWarning: Non-standard ISO country codes: 1A, 1W, 4E, 7E, 8S, A4, A5, A9, B8, C4, C5, C6, C7, C8, C9, EU, F1, JG, KV, L4, L5, L6, L7, M2, OE, S1, S2, S3, S4, XC, XD, XE, XJ, XL, XM, XN, XO, XP, XQ, XR, XS, XT, XU, XY, Z4, Z7, ZF, ZG, ZJ, ZQ
+  warnings.warn(&apos;Non-standard ISO country codes: %s&apos; % tmp)
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[7]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">development_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">sanitation</span><span class="p">,</span> <span class="n">safe_rural_water</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&#39;left&#39;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">development_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">development_frame</span><span class="p">,</span> <span class="n">safe_urb_water</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&#39;left&#39;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">development_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">development_frame</span><span class="p">,</span> <span class="n">cellular</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&#39;left&#39;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">development_frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">development_frame</span><span class="p">,</span> <span class="n">primary_school</span><span class="p">,</span> <span class="n">how</span><span class="o">=</span><span class="s">&#39;left&#39;</span><span class="p">,</span> <span class="n">left_index</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">right_index</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">development_frame</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;sanitation&quot;</span><span class="p">,</span> <span class="s">&quot;safe_r_h2o&quot;</span><span class="p">,</span> <span class="s">&quot;safe_urb_h20&quot;</span><span class="p">,</span> <span class="s">&quot;cellular&quot;</span><span class="p">,</span> <span class="s">&quot;primary_ed&quot;</span><span class="p">]</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[8]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="o">%%</span><span class="k">sql</span> <span class="n">create</span> <span class="n">table</span> <span class="n">dev_indc</span> <span class="p">(</span><span class="n">country</span> <span class="n">varchar2</span><span class="p">(</span><span class="mi">50</span><span class="p">),</span> <span class="n">year</span> <span class="n">number</span><span class="p">,</span> 
+                             <span class="n">sanitation</span> <span class="n">number</span><span class="p">,</span> <span class="n">rh2o</span> <span class="n">number</span><span class="p">,</span> <span class="n">uh2o</span> <span class="n">number</span><span class="p">,</span> <span class="n">cellular</span> <span class="n">number</span><span class="p">,</span> 
+                             <span class="n">primary_ed</span> <span class="n">number</span><span class="p">,</span> <span class="n">primary</span> <span class="n">key</span><span class="p">(</span><span class="n">country</span><span class="p">))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+Done.
+
+</pre>
+</div>
+</div>
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[8]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+[]
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[9]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">output</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+<span class="n">development_frame</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+
+<span class="n">dev_data</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+<span class="n">output</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dev_data</span><span class="p">:</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">san</span><span class="p">,</span> <span class="n">rh2o</span><span class="p">,</span> <span class="n">uh2o</span><span class="p">,</span> <span class="n">cell</span><span class="p">,</span> <span class="n">prim</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;|&quot;</span><span class="p">)</span>
+    <span class="o">%</span><span class="k">sql</span> <span class="n">insert</span> <span class="n">into</span> <span class="n">dev_indc</span> <span class="p">(</span><span class="n">country</span><span class="p">,</span> <span class="n">year</span><span class="p">,</span> <span class="n">sanitation</span><span class="p">,</span> <span class="n">rh2o</span><span class="p">,</span> <span class="n">uh2o</span><span class="p">,</span> <span class="n">cellular</span><span class="p">,</span> <span class="n">primary_ed</span><span class="p">)</span> <span class="n">values</span> <span class="p">(:</span><span class="n">country</span><span class="p">,</span> <span class="p">:</span><span class="n">year</span><span class="p">,</span> <span class="p">:</span><span class="n">san</span><span class="p">,</span> <span class="p">:</span><span class="n">rh2o</span><span class="p">,</span> <span class="p">:</span><span class="n">uh2o</span><span class="p">,</span> <span class="p">:</span><span class="n">cell</span><span class="p">,</span> <span class="p">:</span><span class="n">prim</span><span class="p">)</span>
+  <span class="k">except</span><span class="p">:</span>
+    <span class="k">pass</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt"></div>
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+1 rows affected.
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="Summary">Summary<a class="anchor-link" href="#Summary">&#182;</a></h2>
+</div>
+</div>
+</div>
+
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>In this short exercise, we learned how to use Pandas built-in capabilities to quickly grab data from the web in an analyzable format.  We now have data on:</p>
+<ul>
+<li>World population, population growth, and rural/urban splits</li>
+<li>GDP and Per-capita GDP</li>
+<li>Sanitation, clean water, cellular and education data</li>
+</ul>
+<p>These data sets should help us to ask a number of questions about what influences flu rates around the world. </p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre> 
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+    </div>
+  </div>
+
+{% endblock body %}

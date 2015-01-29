@@ -13,7 +13,7 @@ headline: Scraping data from the web
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Gathering-OIE-Pathogenic-Flu-Data:-Scraping-the-Web">Gathering OIE Pathogenic Flu Data: Scraping the Web<a class="anchor-link" href="#Gathering-OIE-Pathogenic-Flu-Data:-Scraping-the-Web"></a></h1>
+<h1 id="Gathering-OIE-Pathogenic-Flu-Data:-Scraping-the-Web">Gathering OIE Pathogenic Flu Data: Scraping the Web<a class="anchor-link" href="#Gathering-OIE-Pathogenic-Flu-Data:-Scraping-the-Web">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -23,13 +23,13 @@ headline: Scraping data from the web
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Sometimes the data we want to analyze is available on the web, but isn't as conveniently accessed via an API or direct download. In some cases, the data is embedded in web pages and needs to be scraped out. In this exercise, we'll collect data on pathogenic strains of influenza in animals, provided by the World Organization for Animal Health.</p>
-<p>To get this data we'll use a number of pythonic tools</p>
+<p>Sometimes the data we want to analyze is available on the web, but isn&#39;t as conveniently accessed via an API or direct download.  In some cases, the data is embedded in web pages and needs to be scraped out.  In this exercise, we&#39;ll collect data on pathogenic strains of influenza in animals, provided by the <a href="http://www.oie.int/animal-health-in-the-world/update-on-avian-influenza/2013/">World Organization for Animal Health</a>.</p>
+<p>To get this data we&#39;ll use a number of pythonic tools</p>
 <ul>
 <li>Requests: a library which simplifies making web requests</li>
 <li>Beautiful Soup: a library designed to parse and extract information from HTML pages</li>
 <li>cx-Oracle: our standard library for making bulk inserts into Oracle 12c</li>
-<li>ipython-sql: an iPython extension that allows us to write SQL directly in our notebook</li>
+<li>ipython-sql: an iPython extension that allows us to write SQL directly in our notebook </li>
 </ul>
 </div>
 </div>
@@ -67,7 +67,7 @@ In&nbsp;[94]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>By looking at the OIE site, we can tell there are reports for the years 2004-2014, all with the same base URL. Since we want to create a table of all data for all years, let's keep the base URL and year in a pair of variables.</p>
+<p>By looking at the OIE site, we can tell there are reports for the years 2004-2014, all with the same base URL.  Since we want to create a table of all data for all years, let&#39;s keep the base URL and year in a pair of variables.</p>
 </div>
 </div>
 </div>
@@ -93,7 +93,7 @@ In&nbsp;[95]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>The requests library will let us quickly get the report for 2004. However, if we look at the first few lines, we have a whole page of HTML, not just the table we want. How can we quickly get just the information in the table?</p>
+<p>The requests library will let us quickly get the report for 2004.  However, if we look at the first few lines, we have a whole page of HTML, not just the table we want.  How can we quickly get just the information in the table?</p>
 </div>
 </div>
 </div>
@@ -124,20 +124,20 @@ In&nbsp;[96]:
      &quot;http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd&quot;&gt;
 &lt;html xmlns=&quot;http://www.w3.org/1999/xhtml&quot; xml:lang=&quot;en&quot; lang=&quot;en&quot;&gt;
 &lt;head&gt;
-    &lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=utf-8&quot; /&gt;
+	&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=utf-8&quot; /&gt;
 
 &lt;!-- 
-    This website is powered by TYPO3 - inspiring people to share!
-    TYPO3 is a free open source Content Management Framework initially created by Kasper Skaarhoj and licensed under GNU/GPL.
-    TYPO3 is copyright 1998-2009 of Kasper Skaarhoj. Extensions are copyright of their respective owners.
-    Information and contribution at http://typo3.com/ and http://typo3.org/
+	This website is powered by TYPO3 - inspiring people to share!
+	TYPO3 is a free open source Content Management Framework initially created by Kasper Skaarhoj and licensed under GNU/GPL.
+	TYPO3 is copyright 1998-2009 of Kasper Skaarhoj. Extensions are copyright of their respective owners.
+	Information and contribution at http://typo3.com/ and http://typo3.org/
 --&gt;
 
-    &lt;base href=&quot;http://www.oie.int/&quot; /&gt;
-    &lt;link rel=&quot;shortcut icon&quot; href=&quot;http://www.oie.int/fileadmin/www.oie.fr/templates/images/favicon.ico&quot; /&gt;
-    &lt;link rel=&quot;icon&quot; href=&quot;http://www.oie.int/fileadmin/www.oie.fr/templates/images/favicon.ico&quot; /&gt;
-    &lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;typo3temp/stylesheet_c3ad6dc8fa.css&quot; /&gt;
-    &lt;link rel=&quot;stylesheet&quot; type=&quot;text
+	&lt;base href=&quot;http://www.oie.int/&quot; /&gt;
+	&lt;link rel=&quot;shortcut icon&quot; href=&quot;http://www.oie.int/fileadmin/www.oie.fr/templates/images/favicon.ico&quot; /&gt;
+	&lt;link rel=&quot;icon&quot; href=&quot;http://www.oie.int/fileadmin/www.oie.fr/templates/images/favicon.ico&quot; /&gt;
+	&lt;link rel=&quot;stylesheet&quot; type=&quot;text/css&quot; href=&quot;typo3temp/stylesheet_c3ad6dc8fa.css&quot; /&gt;
+	&lt;link rel=&quot;stylesheet&quot; type=&quot;text
 
 </pre>
 </div>
@@ -152,7 +152,7 @@ In&nbsp;[96]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Beautiful Soup is a must-have tool for extracting useful date from HTML pages. By instantiating a new BeautifulSoup object with the raw HTML, we can locate the first table in the page with a simple call.</p>
+<p>Beautiful Soup is a must-have tool for extracting useful date from HTML pages.  By instantiating a new BeautifulSoup object with the raw HTML, we can locate the first table in the page with a simple call.</p>
 </div>
 </div>
 </div>
@@ -211,7 +211,7 @@ JapanH5N1
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Since our table has a header line, we can extract the <code>&lt;th&gt;</code> elements to find out what the column names are. We may not use these names, but it's handy to know what data to expect.</p>
+<p>Since our table has a header line, we can extract the <code>&lt;th&gt;</code> elements to find out what the column names are.  We may not use these names, but it&#39;s handy to know what data to expect.</p>
 </div>
 </div>
 </div>
@@ -252,7 +252,7 @@ In&nbsp;[98]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>What we <em>really</em> want are the rows with data. They're marked with <code>&lt;tr&gt;</code> tags, so they're easy to find. We should exclude the first row, since it only contains the column names.</p>
+<p>What we <em>really</em> want are the rows with data.  They&#39;re marked with <code>&lt;tr&gt;</code> tags, so they&#39;re easy to find.  We should exclude the first row, since it only contains the column names.</p>
 </div>
 </div>
 </div>
@@ -309,13 +309,13 @@ In&nbsp;[99]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Now that we understand how to find the row data in each OIE report, we'll need a function to convert the contents of a <code>&lt;tr&gt;</code> tag into a tuple we can store in a database. The <em>make_db_row</em> function will do this. In the function we need to do several things, including</p>
+<p>Now that we understand how to find the row data in each OIE report, we&#39;ll need a function to convert the contents of a <code>&lt;tr&gt;</code> tag into a tuple we can store in a database. The <em>make_db_row</em> function will do this.  In the function we need to do several things, including</p>
 <ul>
 <li>extracting the <code>href</code> field from the link field</li>
 <li>converting the date field into a python date object</li>
 <li>dealing with inconsistencies in the data</li>
 </ul>
-<p>Look at the series of OIE reports. Does the structure change over time? How does our method need to adapt to those changes?</p>
+<p>Look at the series of OIE reports.  Does the structure change over time?  How does our method need to adapt to those changes?</p>
 </div>
 </div>
 </div>
@@ -356,7 +356,7 @@ In&nbsp;[121]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Let's test our method by passing the 2004 HTML data into it. We should get back a list of tuples.</p>
+<p>Let&#39;s test our method by passing the 2004 HTML data into it.  We should get back a list of tuples.</p>
 </div>
 </div>
 </div>
@@ -481,7 +481,7 @@ In&nbsp;[102]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Now that we have all the data, we can insert it into Oracle 12c just like our other data sets. First, we create the table.</p>
+<p>Now that we have all the data, we can insert it into Oracle 12c just like our other data sets.  First, we create the table.</p>
 </div>
 </div>
 </div>

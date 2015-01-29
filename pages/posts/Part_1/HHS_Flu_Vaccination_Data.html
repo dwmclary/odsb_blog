@@ -23,8 +23,8 @@ headline: Loading JSON Data
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Sometimes data is already in a handy document store for us. JSON (JavaScript Object Notation) data is in the form of a list of objects composed of a set of key-value pairs.</p>
-<p>In this exercise, we'll use basic python and the cx-Oracle to pull Flu Vaccination Data from HHS.gov and store it in a table in our database. The data and API are provided by the <a href="http://flu-vaccination-map.hhs.gov/">US HHS</a>. Since the data we want is already in JSON format, we won't need to do much parsing, we'll mostly just &quot;dump&quot; it into the database. As usual, we begin by importing the libraries we'll need.</p>
+<p>Sometimes data is already in a handy document store for us. JSON (JavaScript Object Notation) data is in the form of a list of objects composed of a set of key-value pairs. </p>
+<p>In this exercise, we&#39;ll use basic python and the cx-Oracle to pull Flu Vaccination Data from HHS.gov and store it in a table in our database. The data and API are provided by the <a href="http://flu-vaccination-map.hhs.gov/">US HHS</a>.  Since the data we want is already in JSON format, we won&#39;t need to do much parsing, we&#39;ll mostly just &quot;dump&quot; it into the database. As usual, we begin by importing the libraries we&#39;ll need.</p>
 </div>
 </div>
 </div>
@@ -54,7 +54,7 @@ In&nbsp;[]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>First thing we'll need to do is write a quick helper function to &quot;jsonify&quot; our data. This will turn our data into separate JSON strings and return them as a list of tuples.</p>
+<p>First thing we&#39;ll need to do is write a quick helper function to &quot;jsonify&quot; our data. This will turn our data into separate JSON strings and return them as a list of tuples. </p>
 </div>
 </div>
 </div>
@@ -79,7 +79,7 @@ In&nbsp;[]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>First, we'll need to connect to the database and make a table to store the data in. Because the data we're collecting is JSON, we can save time by assigning the whole document to a single column. For this exercise we'll just need one table, call it flu_shot_json with, one column, call it doc. We'll pull the 'results' from our data, jsonify it, then insert it into our table in the doc column.</p>
+<p>First, we&#39;ll need to connect to the database and make a table to store the data in.  Because the data we&#39;re collecting is JSON, we can save time by assigning the whole document to a single column.  For this exercise we&#39;ll just need one table, call it flu_shot_json with, one column, call it doc. We&#39;ll pull the &#39;results&#39; from our data, jsonify it, then insert it into our table in the doc column.</p>
 </div>
 </div>
 </div>
@@ -112,8 +112,8 @@ In&nbsp;[]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>That's pretty much all the setup we need to do, so now we'll go ahead and create a <code>write to db</code> function.</p>
-<p>As with most database operations, we need a cursor. Don't forget to commit the inserts after they've executed!</p>
+<p>That&#39;s pretty much all the setup we need to do, so now we&#39;ll go ahead and create a <code>write to db</code> function. </p>
+<p>As with most database operations, we need a cursor.  Don&#39;t forget to commit the inserts after they&#39;ve executed!</p>
 </div>
 </div>
 </div>

@@ -13,7 +13,7 @@ headline: Learn to load and clean simple delimited data
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Loading-Simple-Delimited-Data">Loading Simple Delimited Data<a class="anchor-link" href="#Loading-Simple-Delimited-Data"></a></h1>
+<h1 id="Loading-Simple-Delimited-Data">Loading Simple Delimited Data<a class="anchor-link" href="#Loading-Simple-Delimited-Data">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -23,8 +23,8 @@ headline: Learn to load and clean simple delimited data
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>There are lots of tools to load delimited data in to a database for sharing. But very often, the delimited data we're given doesn't fit the form of the tables we'd like to make. In our case, the WHO makes available country-level data for influenza surveillance: what strain, how many samples, and so on for every week of the year. The data is free to download, but just a raw dump of delimited strings.</p>
-<p>In this exercise, we'll use basic python and the cx-Oracle to clean up the data and form it into useful tables. To begin, let's import cx-Oracle, which we'll use to communicate with our database, and a few standard python libraries.</p>
+<p>There are lots of tools to load delimited data in to a database for sharing.  But very often, the delimited data we&#39;re given doesn&#39;t fit the form of the tables we&#39;d like to make.  In our case, the <a href="http://www.who.int/influenza/gisrs_laboratory/flunet/en/">WHO</a> makes available country-level data for influenza surveillance: what strain, how many samples, and so on for every week of the year.  The data is free to download, but just a raw dump of delimited strings.</p>
+<p>In this exercise, we&#39;ll use basic python and the cx-Oracle to clean up the data and form it into useful tables.  To begin, let&#39;s import cx-Oracle, which we&#39;ll use to communicate with our database, and a few standard python libraries.</p>
 </div>
 </div>
 </div>
@@ -62,10 +62,10 @@ In&nbsp;[10]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>First thing's first: we need a method that will parse one of the <code>.psv</code> files which our WHO data comes in. Take a minute to look at <code>WHO+EURO.psv</code>. How many potential tables do you see in the data?</p>
-<p>Unfortunately, lines in the files aren't all the same length. Some rows have 1 delimiter, some have more than 50. In our method, we've decided that the split between tables occurs where the rows have 2 &quot;columns.&quot; Can you see why?</p>
-<p>We're going to break our file up into logical chunks, and each chunk will become a table. For each of these chunks, we'll need to get the name of the table and the data for the table. We'll also extract the region of the world this data belongs to from the filename.</p>
-<p>Finding the title and the dataset inside each chunk is fairly simple, but we'll need to do more to create well-formed data we can share with a database. For this, we'll define a few functions: one for creating the table name, the other for formatting rows. Then, for each logical chunk, we'll add it to a list of datasets to be inserted into the database.</p>
+<p>First thing&#39;s first: we need a method that will parse one of the <code>.psv</code> files which our WHO data comes in.  Take a minute to look at <code>WHO+EURO.psv</code>.  How many potential tables do you see in the data?</p>
+<p>Unfortunately, lines in the files aren&#39;t all the same length.  Some rows have 1 delimiter, some have more than 50.  In our method, we&#39;ve decided that the split between tables occurs where the rows have 2 &quot;columns.&quot;  Can you see why?</p>
+<p>We&#39;re going to break our file up into logical chunks, and each chunk will become a table.  For each of these chunks, we&#39;ll need to get the name of the table and the data for the table.  We&#39;ll also extract the region of the world this data belongs to from the filename.</p>
+<p>Finding the title and the dataset inside each chunk is fairly simple, but we&#39;ll need to do more to create well-formed data we can share with a database.  For this, we&#39;ll define a few functions: one for creating the table name, the other for formatting rows.  Then, for each logical chunk, we&#39;ll add it to a list of datasets to be inserted into the database.</p>
 </div>
 </div>
 </div>
@@ -114,7 +114,7 @@ In&nbsp;[5]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Making the name for the table is pretty easy. We know we can't have special characters like <code>(</code> or <code>)</code> in our table name. We also can't have spaces. So, with a little chopping up of the string and a few calls to the re module, we've got a clean table name.</p>
+<p>Making the name for the table is pretty easy.  We know we can&#39;t have special characters like <code>(</code> or <code>)</code> in our table name.  We also can&#39;t have spaces.  So, with a little chopping up of the string and a few calls to the re module, we&#39;ve got a clean table name.</p>
 </div>
 </div>
 </div>
@@ -151,7 +151,7 @@ In&nbsp;[3]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Separating the lines of data into rows and columns for our database insert is easy: everything is delimited by the <code>|</code> character. However, we'd like to have a table of tuples like this (region, country, year, week, measurement) and instead we've got all the measures for every week of the year on a single line. Fortunately, this sort of <em>en masse</em> string manipulation is easy with python's map function. By defining an inner function and using the map operator, we can quickly pivot all the weeks into the 4-tuple for our database table.</p>
+<p>Separating the lines of data into rows and columns for our database insert is easy: everything is delimited by the <code>|</code> character.  However, we&#39;d like to have a table of tuples like this (region, country, year, week, measurement) and instead we&#39;ve got all the measures for every week of the year on a single line.  Fortunately, this sort of <em>en masse</em> string manipulation is easy with python&#39;s map function.  By defining an inner function and using the map operator, we can quickly pivot all the weeks into the 4-tuple for our database table.</p>
 </div>
 </div>
 </div>
@@ -198,7 +198,7 @@ In&nbsp;[4]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>We now have a list of datasets, each with a table name and a set of 4-tuples. In order to write this to the database, we'll need a method which does bulk inserts into Oracle database. Our <em>write_to_db</em> function does just that. Notice that because we don't know the name of the table, we use string substitution to automatically create a table for each of the logical chunks in a <code>psv</code> file.</p>
+<p>We now have a list of datasets, each with a table name and a set of 4-tuples.  In order to write this to the database, we&#39;ll need a method which does bulk inserts into Oracle database.  Our <em>write_to_db</em> function does just that.  Notice that because we don&#39;t know the name of the table, we use string substitution to automatically create a table for each of the logical chunks in a <code>psv</code> file.</p>
 </div>
 </div>
 </div>
@@ -246,14 +246,14 @@ In&nbsp;[2]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>While the <em>write_to_db</em> method will rapidly insert a dataset into the database, the tables it creates only show us one measure at a time. When we think about the flu, we would like to look at measures for different strains side-by-side. More importantly, when we expose that data to external tools, we'd like to present a single dataset. Fortunately, database <em>views</em> make it easy to &quot;publish&quot; a particular query for others to quickly access.</p>
-<p>The view we want needs to do the following: for each instance of (country, year, week), produce all the measurements from the tables we created from the raw data. That means our SQL will need to:</p>
+<p>While the <em>write_to_db</em> method will rapidly insert a dataset into the database, the tables it creates only show us one measure at a time.  When we think about the flu, we would like to look at measures for different strains side-by-side.  More importantly, when we expose that data to external tools, we&#39;d like to present a single dataset.  Fortunately, database <em>views</em> make it easy to &quot;publish&quot; a particular query for others to quickly access.</p>
+<p>The view we want needs to do the following: for each instance of (country, year, week), produce all the measurements from the tables we created from the raw data.  That means our SQL will need to:</p>
 <ul>
 <li>SELECT region, country, year, and week from <strong>one</strong> table</li>
 <li>SELECT the measurement from <strong>each</strong> table with a new column name (say, the table name)</li>
 <li>JOIN the tables together so that there is one row with all measures for each (region, country, year, week) tuple.</li>
 </ul>
-<p>Can you write the SQL query yourself? Can you see how the <em>build_view</em> method assembles the query automatically?</p>
+<p>Can you write the SQL query yourself?  Can you see how the <em>build_view</em> method assembles the query automatically?</p>
 </div>
 </div>
 </div>
@@ -302,7 +302,7 @@ In&nbsp;[6]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>With our methods complete, we can finally list the files and get to processing. The glob function allows us a wildcard search of the flu statistics data we downloaded.</p>
+<p>With our methods complete, we can finally list the files and get to processing.  The glob function allows us a wildcard search of the flu statistics data we downloaded.</p>
 </div>
 </div>
 </div>
@@ -374,5 +374,4 @@ In&nbsp;[]:
 </div>
     </div>
   </div>
-
 {% endblock body %}
