@@ -14,7 +14,7 @@ headline: Analytical SQL and Linear Models
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="Do-Vaccination-Rates-Impact-Flu-Rates?">Do Vaccination Rates Impact Flu Rates?<a class="anchor-link" href="#Do-Vaccination-Rates-Impact-Flu-Rates?">&#182;</a></h1>
+<h1 id="Do-Vaccination-Rates-Impact-Flu-Rates?">Do Vaccination Rates Impact Flu Rates?<a class="anchor-link" href="#Do-Vaccination-Rates-Impact-Flu-Rates?"></a></h1>
 </div>
 </div>
 </div>
@@ -25,7 +25,7 @@ headline: Analytical SQL and Linear Models
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <p>Flu shots are important, as any doctor will tell you.  But can we use our data and statistics to explore how flu shots impact the flu?</p>
-<p>In this exercise, we&#39;ll examine US flu and flu shot data to see if there are any meaningful conclusions.  Along the way, we&#39;ll use analytical SQL to find the year-over-year change in certain data.  We&#39;ll also build some simple <a href="http://en.wikipedia.org/wiki/Ordinary_least_squares">Ordinary Least Squares</a> regression models models to evaluate the significance of our assumptions.</p>
+<p>In this exercise, we&#39;ll examine US flu and flu shot data to see if there are any meaningful conclusions.  Along the way, we&#39;ll use analytical SQL to find the year-over-year change in certain data.  We&#39;ll also build some simple <a href="http://en.wikipedia.org/wiki/Ordinary_least_squares">Ordinary Least Squares</a> regression models to evaluate the significance of our assumptions.</p>
 <p>To begin, start with a typical set of <code>import</code>s and the addition of the <code>statsmodel</code> Python library.</p>
 </div>
 </div>
@@ -105,7 +105,7 @@ u&apos;Connected: fludb@orcl&apos;
 <div class="text_cell_render border-box-sizing rendered_html">
 <p>We&#39;ll begin by looking at our flu shot data.  The flu shot data is by state and the US flu surveillance data is by region, so we&#39;ll have to join with the <code>state_stats</code> table to map states to regions.  From there, we can determine a few more things:</p>
 <ul>
-<li>the number of elegible Medicare recipients in the region</li>
+<li>the number of eligible Medicare recipients in the region</li>
 <li>the average percentage of Medicare recipients to receive a flu shot in the region</li>
 <li>the year of the observation</li>
 </ul>
@@ -474,7 +474,7 @@ In&nbsp;[4]:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>We could merge these two DataFrames together in python, but we can get a single DataFrame to work with by writing a SQL clause which joins the results.  Notice that each of our previous queries is now a subquery.</p>
+<p>We could merge these two DataFrames together in python, but we can get a single DataFrame to work by writing a SQL clause which joins the results.  Notice that each of our previous queries is now a subquery.</p>
 </div>
 </div>
 </div>
@@ -1499,7 +1499,7 @@ In&nbsp;[41]:
 <li>R-squared is only 0.309, which suggests that the model only explains 30% of the data</li>
 <li>No factors have a <em>p-value</em> (P&gt;|t|) of less than or equal to 0.05, which suggests that none of them has a significant effect</li>
 </ul>
-<p>Basically, our model is wrong.  This means we should ask another question: do we have the right factors to expliain the data?</p>
+<p>Basically, our model is wrong.  This means we should ask another question: do we have the right factors to explain the data?</p>
 </div>
 </div>
 </div>
@@ -1577,7 +1577,7 @@ strong multicollinearity or other numerical problems.
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Suppose we consider a different factor.  Perhaps the year-over-year change in flu cases is explained by access to flu shots, not strictly the increase in vaccinations.  In this case, the factor of interest would be the change in elegibility.  </p>
+<p>Suppose we consider a different factor.  Perhaps the year-over-year change in flu cases is explained by access to flu shots, not strictly the increase in vaccinations.  In this case, the factor of interest would be the change in eligibility.  </p>
 <p>Let&#39;s construct a new dataset to examine that scenario.</p>
 </div>
 </div>
